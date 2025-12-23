@@ -1,6 +1,7 @@
 import cors from "cors";
 import dotenv from "dotenv";
 import express from "express";
+import medicationRoutes from "./routes/medication.routes";
 
 dotenv.config();
 
@@ -11,6 +12,9 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Routes
+app.use("/api/medications", medicationRoutes);
 
 // Health check route
 app.get("/health", (req, res) => {
