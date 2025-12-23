@@ -1,7 +1,9 @@
 import cors from "cors";
 import dotenv from "dotenv";
 import express from "express";
+import authRoutes from "./routes/auth.routes";
 import medicationRoutes from "./routes/medication.routes";
+import { authMiddleware } from "./middleware/auth.middleware";
 
 dotenv.config();
 
@@ -14,7 +16,8 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Routes
-app.use("/api/medications", medicationRoutes);
+app.use("/api/auth", authRoutes);
+app.use("/api/medications", authMiddleware, medicationRoutes);
 
 // Health check route
 app.get("/health", (req, res) => {

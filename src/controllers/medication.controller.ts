@@ -1,12 +1,14 @@
-import { Request, Response } from "express";
+import { Response } from "express";
+import { AuthRequest } from "../middleware/auth.middleware";
 import * as medicationService from "../services/medication.service";
 
-export const createMedication = async (req: Request, res: Response) => {
+export const createMedication = async (req: AuthRequest, res: Response) => {
   try {
-    const { userId, name, dosage, instructions } = req.body;
+    const userId = req.user!.userId;
+    const { name, dosage, instructions } = req.body;
 
-    if (!userId || !name) {
-      return res.status(400).json({ error: "userId and name are required" });
+    if (!name) {
+      return res.status(400).json({ error: "name is required" });
     }
 
     const medication = await medicationService.createMedication({
@@ -23,14 +25,9 @@ export const createMedication = async (req: Request, res: Response) => {
   }
 };
 
-export const getMedications = async (req: Request, res: Response) => {
+export const getMedications = async (req: AuthRequest, res: Response) => {
   try {
-    const { userId } = req.query;
-
-    if (!userId || typeof userId !== "string") {
-      return res.status(400).json({ error: "userId is required" });
-    }
-
+    const userId = req.user!.userId;
     const medications = await medicationService.getMedications(userId);
     return res.json(medications);
   } catch (error) {
@@ -39,7 +36,7 @@ export const getMedications = async (req: Request, res: Response) => {
   }
 };
 
-export const updateMedication = async (req: Request, res: Response) => {
+export const updateMedication = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const { name, dosage, instructions, imageUrl, isActive } = req.body;
@@ -59,7 +56,7 @@ export const updateMedication = async (req: Request, res: Response) => {
   }
 };
 
-export const deleteMedication = async (req: Request, res: Response) => {
+export const deleteMedication = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
 
