@@ -9,4 +9,132 @@ datasource db {
   provider = "postgresql"
 }
 
-// Add your models here
+// =====================
+// ENUMS
+// =====================
+
+enum TimeSlot {
+  MORNING
+  NOON
+  AFTERNOON
+  NIGHT
+  BEFORE_SLEEP
+}
+
+enum IntakeStatus {
+  CONFIRMED // Taken on time
+  LATE // Taken but late
+  MISSED // Not taken
+  SKIPPED // User skipped intentionally
+}
+
+// =====================
+// TABLES
+// =====================
+
+// User
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  name      String
+  password  String
+  avatarUrl String?  @map("avatar_url")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  settings          UserSettings?
+  medications       Medication[]
+  medicationLogs    MedicationLog[]
+  emergencyContacts EmergencyContact[]
+
+  @@map("users")
+}
+
+// User Settings/Preferences
+model UserSettings {
+  id                String  @id @default(uuid())
+  userId            String  @unique @map("user_id")
+  pushNotifications Boolean @default(true) @map("push_notifications")
+  automatedCalls    Boolean @default(false) @map("automated_calls")
+  darkMode          Boolean @default(false) @map("dark_mode")
+
+  // Default times for each slot (user can customize)
+  morningTime     String @default("08:00") @map("morning_time")
+  noonTime        String @default("12:00") @map("noon_time")
+  afternoonTime   String @default("16:00") @map("afternoon_time")
+  nightTime       String @default("20:00") @map("night_time")
+  beforeSleepTime String @default("22:00") @map("before_sleep_time")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_settings")
+}
+
+// Medication
+model Medication {
+  id           String   @id @default(uuid())
+  userId       String   @map("user_id")
+  name         String
+  dosage       String?
+  instructions String?
+  imageUrl     String?  @map("image_url") // Scanned prescription image
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  schedules      Schedule[]
+  medicationLogs MedicationLog[]
+
+  @@map("medications")
+}
+
+// Schedule - When to take each medication
+model Schedule {
+  id           String   @id @default(uuid())
+  medicationId String   @map("medication_id")
+  timeSlot     TimeSlot @map("time_slot")
+  customTime   String?  @map("custom_time") // Override default time if set
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  medication Medication @relation(fields: [medicationId], references: [id], onDelete: Cascade)
+
+  @@unique([medicationId, timeSlot])
+  @@map("schedules")
+}
+
+// Medication Log - History of intake
+model MedicationLog {
+  id            String       @id @default(uuid())
+  userId        String       @map("user_id")
+  medicationId  String       @map("medication_id")
+  timeSlot      TimeSlot     @map("time_slot")
+  scheduledDate DateTime     @map("scheduled_date") // The date it was scheduled for
+  scheduledTime String       @map("scheduled_time") // e.g., "08:00"
+  status        IntakeStatus
+  takenAt       DateTime?    @map("taken_at") // When actually taken (null if missed)
+  createdAt     DateTime     @default(now()) @map("created_at")
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  medication Medication @relation(fields: [medicationId], references: [id], onDelete: Cascade)
+
+  @@map("medication_logs")
+}
+
+// Emergency Contact / Caregiver
+model EmergencyContact {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  name      String
+  phone     String
+  email     String?
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("emergency_contacts")
+}
