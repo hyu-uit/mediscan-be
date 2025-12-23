@@ -32,7 +32,11 @@ export const register = async (data: RegisterInput) => {
       email: data.email,
       name: data.name,
       password: hashedPassword,
+      settings: {
+        create: {}, // Auto-create settings with defaults
+      },
     },
+    include: { settings: true },
   });
 
   const token = jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET, {

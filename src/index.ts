@@ -3,6 +3,8 @@ import dotenv from "dotenv";
 import express from "express";
 import authRoutes from "./routes/auth.routes";
 import medicationRoutes from "./routes/medication.routes";
+import scheduleRoutes from "./routes/schedule.routes";
+import userSettingsRoutes from "./routes/user-settings.routes";
 import { authMiddleware } from "./middleware/auth.middleware";
 
 dotenv.config();
@@ -18,6 +20,8 @@ app.use(express.urlencoded({ extended: true }));
 // Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/medications", authMiddleware, medicationRoutes);
+app.use("/api/schedules", authMiddleware, scheduleRoutes);
+app.use("/api/user-settings", authMiddleware, userSettingsRoutes);
 
 // Health check route
 app.get("/health", (req, res) => {
