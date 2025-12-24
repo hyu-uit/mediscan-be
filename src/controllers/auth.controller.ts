@@ -37,7 +37,10 @@ export const login = async (req: Request, res: Response) => {
     const result = await authService.login({ email, password });
     return sendSuccess(res, result);
   } catch (error) {
-    if (error instanceof Error && error.message === "Invalid credentials") {
+    if (
+      (error instanceof Error && error.message === "User not found") ||
+      (error instanceof Error && error.message === "Invalid credentials")
+    ) {
       return sendError(res, error.message, 401, req.path);
     }
     console.error("Error logging in:", error);
