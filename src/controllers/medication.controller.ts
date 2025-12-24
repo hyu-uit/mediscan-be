@@ -1,6 +1,7 @@
 import { Response } from "express";
 import { AuthRequest } from "../middleware/auth.middleware";
 import * as medicationService from "../services/medication.service";
+import { sendSuccess, sendError } from "../utils/response";
 
 export const createMedication = async (req: AuthRequest, res: Response) => {
   try {
@@ -8,7 +9,7 @@ export const createMedication = async (req: AuthRequest, res: Response) => {
     const { name, dosage, instructions } = req.body;
 
     if (!name) {
-      return res.status(400).json({ error: "name is required" });
+      return sendError(res, "name is required", 400, req.path);
     }
 
     const medication = await medicationService.createMedication({
@@ -18,10 +19,10 @@ export const createMedication = async (req: AuthRequest, res: Response) => {
       instructions,
     });
 
-    return res.status(201).json(medication);
+    return sendSuccess(res, medication, 201);
   } catch (error) {
     console.error("Error creating medication:", error);
-    return res.status(500).json({ error: "Failed to create medication" });
+    return sendError(res, "Failed to create medication", 500, req.path);
   }
 };
 
@@ -29,10 +30,10 @@ export const getMedications = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.userId;
     const medications = await medicationService.getMedications(userId);
-    return res.json(medications);
+    return sendSuccess(res, medications);
   } catch (error) {
     console.error("Error fetching medications:", error);
-    return res.status(500).json({ error: "Failed to fetch medications" });
+    return sendError(res, "Failed to fetch medications", 500, req.path);
   }
 };
 
@@ -49,10 +50,10 @@ export const updateMedication = async (req: AuthRequest, res: Response) => {
       isActive,
     });
 
-    return res.json(medication);
+    return sendSuccess(res, medication);
   } catch (error) {
     console.error("Error updating medication:", error);
-    return res.status(500).json({ error: "Failed to update medication" });
+    return sendError(res, "Failed to update medication", 500, req.path);
   }
 };
 
@@ -61,9 +62,9 @@ export const deleteMedication = async (req: AuthRequest, res: Response) => {
     const { id } = req.params;
 
     await medicationService.deleteMedication(id);
-    return res.status(204).send();
+    return sendSuccess(res, null, 204);
   } catch (error) {
     console.error("Error deleting medication:", error);
-    return res.status(500).json({ error: "Failed to delete medication" });
+    return sendError(res, "Failed to delete medication", 500, req.path);
   }
 };

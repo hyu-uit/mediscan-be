@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
+import { sendError } from "../utils/response";
 
 export interface AuthRequest extends Request {
   user?: {
@@ -16,7 +17,7 @@ export const authMiddleware = (
   const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return res.status(401).json({ error: "No token provided" });
+    return sendError(res, "No token provided", 401, req.path);
   }
 
   const token = authHeader.split(" ")[1];
@@ -30,6 +31,6 @@ export const authMiddleware = (
     req.user = decoded;
     next();
   } catch {
-    return res.status(401).json({ error: "Invalid token" });
+    return sendError(res, "Invalid token", 401, req.path);
   }
 };

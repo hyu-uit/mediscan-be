@@ -1,15 +1,19 @@
 import { Response } from "express";
 import { AuthRequest } from "../middleware/auth.middleware";
 import * as scheduleService from "../services/schedule.service";
+import { sendSuccess, sendError } from "../utils/response";
 
 export const createSchedule = async (req: AuthRequest, res: Response) => {
   try {
     const { medicationId, timeSlot, customTime } = req.body;
 
     if (!medicationId || !timeSlot) {
-      return res
-        .status(400)
-        .json({ error: "medicationId and timeSlot are required" });
+      return sendError(
+        res,
+        "medicationId and timeSlot are required",
+        400,
+        req.path
+      );
     }
 
     const schedule = await scheduleService.createSchedule({
@@ -18,10 +22,10 @@ export const createSchedule = async (req: AuthRequest, res: Response) => {
       customTime,
     });
 
-    return res.status(201).json(schedule);
+    return sendSuccess(res, schedule, 201);
   } catch (error) {
     console.error("Error creating schedule:", error);
-    return res.status(500).json({ error: "Failed to create schedule" });
+    return sendError(res, "Failed to create schedule", 500, req.path);
   }
 };
 
@@ -35,10 +39,10 @@ export const getSchedulesByMedication = async (
     const schedules = await scheduleService.getSchedulesByMedication(
       medicationId
     );
-    return res.json(schedules);
+    return sendSuccess(res, schedules);
   } catch (error) {
     console.error("Error fetching schedules:", error);
-    return res.status(500).json({ error: "Failed to fetch schedules" });
+    return sendError(res, "Failed to fetch schedules", 500, req.path);
   }
 };
 
@@ -53,10 +57,10 @@ export const updateSchedule = async (req: AuthRequest, res: Response) => {
       isActive,
     });
 
-    return res.json(schedule);
+    return sendSuccess(res, schedule);
   } catch (error) {
     console.error("Error updating schedule:", error);
-    return res.status(500).json({ error: "Failed to update schedule" });
+    return sendError(res, "Failed to update schedule", 500, req.path);
   }
 };
 
@@ -65,9 +69,9 @@ export const deleteSchedule = async (req: AuthRequest, res: Response) => {
     const { id } = req.params;
 
     await scheduleService.deleteSchedule(id);
-    return res.status(204).send();
+    return sendSuccess(res, null, 204);
   } catch (error) {
     console.error("Error deleting schedule:", error);
-    return res.status(500).json({ error: "Failed to delete schedule" });
+    return sendError(res, "Failed to delete schedule", 500, req.path);
   }
 };
