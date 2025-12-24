@@ -1,5 +1,35 @@
 import prisma from "../utils/prisma";
 import { medicationReminderQueue } from "../queues/medication.queue";
+import { TimeSlot } from "@prisma/client";
+
+// Map schedule type to TimeSlot enum for medication logs
+const typeToTimeSlot: Record<string, TimeSlot> = {
+  morning: "MORNING",
+  noon: "NOON",
+  afternoon: "AFTERNOON",
+  night: "NIGHT",
+  before_sleep: "BEFORE_SLEEP",
+};
+
+// Convert "08:00 AM" to hours and minutes
+function parseTime(timeStr: string): { hours: number; minutes: number } {
+  // Handle both "08:00 AM" and "08:00" formats
+  const parts = timeStr.split(" ");
+  const [hours, minutes] = parts[0].split(":").map(Number);
+
+  if (parts.length === 2) {
+    // 12-hour format
+    const modifier = parts[1];
+    if (modifier === "PM" && hours !== 12) {
+      return { hours: hours + 12, minutes };
+    }
+    if (modifier === "AM" && hours === 12) {
+      return { hours: 0, minutes };
+    }
+  }
+
+  return { hours, minutes };
+}
 
 /**
  * Schedule medication reminders for a specific user for today
@@ -7,16 +37,6 @@ import { medicationReminderQueue } from "../queues/medication.queue";
 export const scheduleUserMedications = async (userId: string) => {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-
-  // Get user settings for time slots
-  const userSettings = await prisma.userSettings.findUnique({
-    where: { userId },
-  });
-
-  if (!userSettings) {
-    console.log(`No settings found for user ${userId}`);
-    return;
-  }
 
   // Get all active medications with their schedules
   const medications = await prisma.medication.findMany({
@@ -28,19 +48,9 @@ export const scheduleUserMedications = async (userId: string) => {
     },
   });
 
-  const timeSlotMapping: Record<string, string> = {
-    MORNING: userSettings.morningTime,
-    NOON: userSettings.noonTime,
-    AFTERNOON: userSettings.afternoonTime,
-    NIGHT: userSettings.nightTime,
-    BEFORE_SLEEP: userSettings.beforeSleepTime,
-  };
-
   for (const medication of medications) {
     for (const schedule of medication.schedules) {
-      const scheduledTime =
-        schedule.customTime || timeSlotMapping[schedule.timeSlot];
-      const [hours, minutes] = scheduledTime.split(":").map(Number);
+      const { hours, minutes } = parseTime(schedule.time);
 
       const scheduledDateTime = new Date(today);
       scheduledDateTime.setHours(hours, minutes, 0, 0);
@@ -50,14 +60,17 @@ export const scheduleUserMedications = async (userId: string) => {
         continue;
       }
 
+      // Convert type to TimeSlot for medication log
+      const timeSlot = typeToTimeSlot[schedule.type] || "MORNING";
+
       // Create medication log entry
       const medicationLog = await prisma.medicationLog.create({
         data: {
           userId,
           medicationId: medication.id,
-          timeSlot: schedule.timeSlot,
+          timeSlot,
           scheduledDate: today,
-          scheduledTime,
+          scheduledTime: schedule.time,
           status: "MISSED", // Default to MISSED, will be updated when taken
         },
       });
@@ -73,8 +86,8 @@ export const scheduleUserMedications = async (userId: string) => {
           userId,
           medicationId: medication.id,
           medicationName: medication.name,
-          timeSlot: schedule.timeSlot,
-          scheduledTime,
+          timeSlot,
+          scheduledTime: schedule.time,
         },
         {
           delay,
@@ -83,9 +96,9 @@ export const scheduleUserMedications = async (userId: string) => {
       );
 
       console.log(
-        `📅 Scheduled reminder for ${
-          medication.name
-        } at ${scheduledTime} (in ${Math.round(delay / 60000)} mins)`
+        `📅 Scheduled reminder for ${medication.name} at ${
+          schedule.time
+        } (in ${Math.round(delay / 60000)} mins)`
       );
     }
   }

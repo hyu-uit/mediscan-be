@@ -3,14 +3,53 @@ import { AuthRequest } from "../middleware/auth.middleware";
 import * as scheduleService from "../services/schedule.service";
 import { sendSuccess, sendError } from "../utils/response";
 
+/**
+ * Create multiple medications with their schedules (bulk operation)
+ * POST /api/schedules/bulk
+ * Body: { medications: [...] }
+ */
+export const createBulkMedicationsWithSchedules = async (
+  req: AuthRequest,
+  res: Response
+) => {
+  try {
+    const userId = req.user!.userId;
+    const { medications } = req.body;
+
+    if (
+      !medications ||
+      !Array.isArray(medications) ||
+      medications.length === 0
+    ) {
+      return sendError(res, "medications array is required", 400, req.path);
+    }
+
+    const createdMedications =
+      await scheduleService.createBulkMedicationsWithSchedules(
+        userId,
+        medications
+      );
+
+    return sendSuccess(res, createdMedications, 201);
+  } catch (error) {
+    console.error("Error creating bulk medications with schedules:", error);
+    return sendError(
+      res,
+      "Failed to create medications with schedules",
+      500,
+      req.path
+    );
+  }
+};
+
 export const createSchedule = async (req: AuthRequest, res: Response) => {
   try {
-    const { medicationId, timeSlot, customTime } = req.body;
+    const { medicationId, time, type } = req.body;
 
-    if (!medicationId || !timeSlot) {
+    if (!medicationId || !time || !type) {
       return sendError(
         res,
-        "medicationId and timeSlot are required",
+        "medicationId, time, and type are required",
         400,
         req.path
       );
@@ -18,8 +57,8 @@ export const createSchedule = async (req: AuthRequest, res: Response) => {
 
     const schedule = await scheduleService.createSchedule({
       medicationId,
-      timeSlot,
-      customTime,
+      time,
+      type,
     });
 
     return sendSuccess(res, schedule, 201);
@@ -49,11 +88,11 @@ export const getSchedulesByMedication = async (
 export const updateSchedule = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const { timeSlot, customTime, isActive } = req.body;
+    const { time, type, isActive } = req.body;
 
     const schedule = await scheduleService.updateSchedule(id, {
-      timeSlot,
-      customTime,
+      time,
+      type,
       isActive,
     });
 

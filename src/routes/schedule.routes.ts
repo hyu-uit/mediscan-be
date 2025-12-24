@@ -3,6 +3,7 @@ import * as scheduleController from "../controllers/schedule.controller";
 
 const router = Router();
 
+router.post("/bulk", scheduleController.createBulkMedicationsWithSchedules);
 router.post("/", scheduleController.createSchedule);
 router.get(
   "/medication/:medicationId",

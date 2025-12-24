@@ -2,11 +2,72 @@ import { Response } from "express";
 import { AuthRequest } from "../middleware/auth.middleware";
 import * as medicationService from "../services/medication.service";
 import { sendSuccess, sendError } from "../utils/response";
+import {
+  FrequencyType,
+  DosageUnit,
+  IntervalUnit,
+  TimeSlot,
+} from "@prisma/client";
+
+// Map frontend values to Prisma enums
+const frequencyTypeMap: Record<string, FrequencyType> = {
+  daily: "DAILY",
+  interval: "INTERVAL",
+  "specific-days": "SPECIFIC_DAYS",
+};
+
+const dosageUnitMap: Record<string, DosageUnit> = {
+  mg: "MG",
+  ml: "ML",
+  IU: "IU",
+  tablet: "TABLET",
+  capsule: "CAPSULE",
+  drops: "DROPS",
+  tsp: "TSP",
+  tbsp: "TBSP",
+};
+
+const intervalUnitMap: Record<string, IntervalUnit> = {
+  days: "DAYS",
+  weeks: "WEEKS",
+  months: "MONTHS",
+};
+
+const timeSlotMap: Record<string, TimeSlot> = {
+  morning: "MORNING",
+  noon: "NOON",
+  afternoon: "AFTERNOON",
+  night: "NIGHT",
+  before_sleep: "BEFORE_SLEEP",
+};
+
+// Transform intakeTimes to use TimeSlot values
+const mapIntakeTimes = (
+  intakeTimes?: { id: string; time: string; type: string }[]
+) => {
+  if (!intakeTimes) return undefined;
+  return intakeTimes.map((intake) => ({
+    id: intake.id,
+    time: intake.time,
+    type: timeSlotMap[intake.type] || intake.type.toUpperCase(),
+  }));
+};
 
 export const createMedication = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.userId;
-    const { name, dosage, instructions } = req.body;
+    const {
+      name,
+      dosage,
+      unit,
+      instructions,
+      notes,
+      frequencyType,
+      intervalValue,
+      intervalUnit,
+      selectedDays,
+      intakeTimes,
+    } = req.body;
 
     if (!name) {
       return sendError(res, "name is required", 400, req.path);
@@ -16,7 +77,16 @@ export const createMedication = async (req: AuthRequest, res: Response) => {
       userId,
       name,
       dosage,
+      unit: unit ? dosageUnitMap[unit] : undefined,
       instructions,
+      notes,
+      frequencyType: frequencyType
+        ? frequencyTypeMap[frequencyType]
+        : undefined,
+      intervalValue: intervalValue ? parseInt(intervalValue, 10) : undefined,
+      intervalUnit: intervalUnit ? intervalUnitMap[intervalUnit] : undefined,
+      selectedDays,
+      intakeTimes: mapIntakeTimes(intakeTimes),
     });
 
     return sendSuccess(res, medication, 201);
@@ -40,12 +110,34 @@ export const getMedications = async (req: AuthRequest, res: Response) => {
 export const updateMedication = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const { name, dosage, instructions, imageUrl, isActive } = req.body;
+    const {
+      name,
+      dosage,
+      unit,
+      instructions,
+      notes,
+      frequencyType,
+      intervalValue,
+      intervalUnit,
+      selectedDays,
+      intakeTimes,
+      imageUrl,
+      isActive,
+    } = req.body;
 
     const medication = await medicationService.updateMedication(id, {
       name,
       dosage,
+      unit: unit ? dosageUnitMap[unit] : undefined,
       instructions,
+      notes,
+      frequencyType: frequencyType
+        ? frequencyTypeMap[frequencyType]
+        : undefined,
+      intervalValue: intervalValue ? parseInt(intervalValue, 10) : undefined,
+      intervalUnit: intervalUnit ? intervalUnitMap[intervalUnit] : undefined,
+      selectedDays,
+      intakeTimes: mapIntakeTimes(intakeTimes),
       imageUrl,
       isActive,
     });
