@@ -1,0 +1,10 @@
+import { Router } from "express";
+import * as medicationLogController from "../controllers/medication-log.controller";
+
+const router = Router();
+
+router.get("/", medicationLogController.getLogs);
+router.post("/:id/taken", medicationLogController.markTaken);
+router.post("/:id/skip", medicationLogController.skip);
+
+export default router;

@@ -5,7 +5,12 @@ import authRoutes from "./routes/auth.routes";
 import medicationRoutes from "./routes/medication.routes";
 import scheduleRoutes from "./routes/schedule.routes";
 import userSettingsRoutes from "./routes/user-settings.routes";
+import medicationLogRoutes from "./routes/medication-log.routes";
 import { authMiddleware } from "./middleware/auth.middleware";
+
+// Import workers to start them
+import "./workers/medication-reminder.worker";
+import "./workers/medication-missed.worker";
 
 dotenv.config();
 
@@ -22,6 +27,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/medications", authMiddleware, medicationRoutes);
 app.use("/api/schedules", authMiddleware, scheduleRoutes);
 app.use("/api/user-settings", authMiddleware, userSettingsRoutes);
+app.use("/api/medication-logs", authMiddleware, medicationLogRoutes);
 
 // Health check route
 app.get("/health", (req, res) => {
