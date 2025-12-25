@@ -145,3 +145,22 @@ export async function deleteSchedule(req: AuthRequest, res: Response) {
     );
   }
 }
+
+export async function getTodaySchedule(req: AuthRequest, res: Response) {
+  try {
+    const userId = req.user!.userId;
+    const result = await scheduleService.getTodaySchedule(userId);
+    return sendSuccess(res, result, HTTP_STATUS.OK);
+  } catch (error) {
+    if (error instanceof AppError) {
+      return sendError(res, error.message, error.statusCode, req.path);
+    }
+    console.error("Error fetching today's schedule:", error);
+    return sendError(
+      res,
+      "Failed to fetch today's schedule",
+      HTTP_STATUS.INTERNAL_ERROR,
+      req.path
+    );
+  }
+}

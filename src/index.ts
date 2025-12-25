@@ -1,6 +1,7 @@
 import cors from "cors";
 import dotenv from "dotenv";
 import express from "express";
+import cron from "node-cron";
 
 dotenv.config();
 
@@ -12,6 +13,7 @@ import medicationLogRoutes from "./routes/medication-log.routes";
 
 import { authMiddleware } from "./middleware/auth.middleware";
 import { errorHandler, notFoundHandler } from "./middleware/error.middleware";
+import { scheduleAllUserMedications } from "./services/medication-scheduler.service";
 
 import "./workers/medication-reminder.worker";
 import "./workers/medication-missed.worker";
@@ -42,6 +44,19 @@ app.use(errorHandler);
 // Start Server
 app.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
+});
+
+// Daily cron job: Schedule all user medications at midnight
+cron.schedule("0 0 * * *", async () => {
+  console.log("🕛 [CRON] Running daily medication scheduler...");
+  try {
+    const result = await scheduleAllUserMedications();
+    console.log(
+      `✅ [CRON] Scheduled ${result.totalQueued} reminders for ${result.usersProcessed} users`
+    );
+  } catch (error) {
+    console.error("❌ [CRON] Failed to schedule medications:", error);
+  }
 });
 
 process.on("SIGTERM", () => process.exit(0));

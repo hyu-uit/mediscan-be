@@ -225,3 +225,52 @@ export async function deleteSchedule(id: string) {
 
   return prisma.schedule.delete({ where: { id } });
 }
+
+// Get today's schedule for home screen
+export async function getTodaySchedule(userId: string) {
+  if (!userId) throw new BadRequestError("userId is required");
+
+  const medications = await prisma.medication.findMany({
+    where: { userId, isActive: true },
+    include: {
+      schedules: {
+        where: { isActive: true },
+        orderBy: { time: "asc" },
+      },
+    },
+  });
+
+  // Filter medications that should be scheduled today
+  const medicationsToday = medications.filter(shouldScheduleToday);
+
+  // Flatten schedules with medication info
+  const todaySchedules = medicationsToday.flatMap((medication) =>
+    medication.schedules.map((schedule) => ({
+      id: schedule.id,
+      medicationId: medication.id,
+      medicationName: medication.name,
+      dosage: medication.dosage,
+      unit: medication.unit,
+      instructions: medication.instructions,
+      time: schedule.time,
+      timeSlot: schedule.type,
+      isPassed: hasTimePassed(schedule.time),
+    }))
+  );
+
+  // Sort by time
+  todaySchedules.sort((a, b) => {
+    const timeA = a.time.replace(/[^0-9:]/g, "");
+    const timeB = b.time.replace(/[^0-9:]/g, "");
+    return timeA.localeCompare(timeB);
+  });
+
+  // Count remaining (not passed)
+  const remainingCount = todaySchedules.filter((s) => !s.isPassed).length;
+
+  return {
+    schedules: todaySchedules,
+    totalCount: todaySchedules.length,
+    remainingCount,
+  };
+}

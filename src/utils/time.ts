@@ -99,7 +99,7 @@ export function shouldScheduleToday(medication: MedicationFrequency): boolean {
     }
 
     case "SPECIFIC_DAYS": {
-      const dayNames = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+      const dayNames = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
       const todayName = dayNames[today.getDay()];
       return medication.selectedDays.includes(todayName);
     }
