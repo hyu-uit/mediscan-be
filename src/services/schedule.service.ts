@@ -6,7 +6,12 @@ import {
   TimeSlot,
 } from "@prisma/client";
 import { medicationReminderQueue } from "../queues/medication.queue";
-import { hasTimePassed, getDelayUntil } from "../utils/time";
+import {
+  hasTimePassed,
+  getDelayUntil,
+  shouldScheduleToday,
+  MedicationFrequency,
+} from "../utils/time";
 import { BadRequestError } from "../utils/errors";
 
 interface IntakeTime {
@@ -29,7 +34,7 @@ interface MedicationInput {
   intakeTimes?: IntakeTime[];
 }
 
-interface MedicationWithSchedules {
+interface MedicationWithSchedules extends MedicationFrequency {
   id: string;
   name: string;
   schedules: Array<{ id: string; time: string; type: string }>;
@@ -147,6 +152,15 @@ async function queueRemindersForMedications(
 
   for (const medication of medications) {
     if (!medication) continue;
+
+    // Check if medication should be scheduled today based on frequency
+    if (!shouldScheduleToday(medication)) {
+      console.log(
+        `⏭️ Skipping ${medication.name} (not scheduled for today based on frequency)`
+      );
+      continue;
+    }
+
     for (const schedule of medication.schedules) {
       promises.push(queueSingleReminder(userId, medication, schedule));
     }

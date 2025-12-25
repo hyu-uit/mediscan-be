@@ -1,7 +1,11 @@
 import prisma from "../utils/prisma";
 import { medicationReminderQueue } from "../queues/medication.queue";
 import { TimeSlot } from "@prisma/client";
-import { hasTimePassed, getDelayUntil } from "../utils/time";
+import {
+  hasTimePassed,
+  getDelayUntil,
+  shouldScheduleToday,
+} from "../utils/time";
 
 interface ScheduleWithMedication {
   id: string;
@@ -65,9 +69,16 @@ export async function scheduleUserMedications(userId: string) {
     include: { schedules: { where: { isActive: true } } },
   });
 
+  // Filter medications that should be scheduled today based on frequency
+  const medicationsToSchedule = medications.filter(shouldScheduleToday);
+
+  console.log(
+    `📋 User ${userId}: ${medicationsToSchedule.length}/${medications.length} medications scheduled for today`
+  );
+
   const allSchedules: ScheduleWithMedication[] = [];
 
-  for (const medication of medications) {
+  for (const medication of medicationsToSchedule) {
     for (const schedule of medication.schedules) {
       allSchedules.push({
         ...schedule,
