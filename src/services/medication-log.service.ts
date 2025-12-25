@@ -2,7 +2,7 @@ import prisma from "../utils/prisma";
 import { medicationMissedQueue } from "../queues/medication.queue";
 import { DEFAULTS } from "../constants";
 import { BadRequestError, NotFoundError } from "../utils/errors";
-import { parseTime } from "../utils/time";
+import { parseTime, getTodayUTC, getDateUTC } from "../utils/time";
 
 export async function markMedicationTaken(medicationLogId: string) {
   if (!medicationLogId)
@@ -18,7 +18,7 @@ export async function markMedicationTaken(medicationLogId: string) {
   const { hours, minutes } = parseTime(medicationLog.scheduledTime);
 
   const scheduledDateTime = new Date(medicationLog.scheduledDate);
-  scheduledDateTime.setHours(hours, minutes, 0, 0);
+  scheduledDateTime.setUTCHours(hours, minutes, 0, 0);
 
   const diffMinutes = (now.getTime() - scheduledDateTime.getTime()) / 60000;
   const status =
@@ -57,11 +57,9 @@ export async function skipMedication(medicationLogId: string) {
 export async function getMedicationLogs(userId: string, date?: Date) {
   if (!userId) throw new BadRequestError("userId is required");
 
-  const targetDate = date ? new Date(date) : new Date();
-  targetDate.setHours(0, 0, 0, 0);
-
+  const targetDate = date ? getDateUTC(date) : getTodayUTC();
   const nextDay = new Date(targetDate);
-  nextDay.setDate(nextDay.getDate() + 1);
+  nextDay.setUTCDate(nextDay.getUTCDate() + 1);
 
   return prisma.medicationLog.findMany({
     where: {

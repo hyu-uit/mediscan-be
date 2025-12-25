@@ -13,6 +13,23 @@ export interface MedicationFrequency {
   createdAt: Date;
 }
 
+/**
+ * Get today's date at UTC midnight (00:00:00.000Z)
+ * This ensures consistent date storage regardless of server timezone
+ */
+export function getTodayUTC(): Date {
+  const now = new Date();
+  return new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+}
+
+/**
+ * Get a specific date at UTC midnight
+ */
+export function getDateUTC(date: Date | string): Date {
+  const d = new Date(date);
+  return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+}
+
 export function parseTime(timeStr: string): ParsedTime {
   const parts = timeStr.split(" ");
   const [hours, minutes] = parts[0].split(":").map(Number);

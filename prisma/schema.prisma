@@ -22,9 +22,10 @@ enum TimeSlot {
 }
 
 enum IntakeStatus {
+  PENDING // Upcoming, not yet due
   CONFIRMED // Taken on time
   LATE // Taken but late
-  MISSED // Not taken
+  MISSED // Not taken (time passed without action)
   SKIPPED // User skipped intentionally
 }
 
@@ -128,7 +129,8 @@ model Schedule {
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  medication Medication @relation(fields: [medicationId], references: [id], onDelete: Cascade)
+  medication     Medication      @relation(fields: [medicationId], references: [id], onDelete: Cascade)
+  medicationLogs MedicationLog[]
 
   @@map("schedules")
 }
@@ -138,15 +140,17 @@ model MedicationLog {
   id            String       @id @default(uuid())
   userId        String       @map("user_id")
   medicationId  String       @map("medication_id")
-  timeSlot      TimeSlot     @map("time_slot")
+  scheduleId    String?      @map("schedule_id") // Link to schedule template
   scheduledDate DateTime     @map("scheduled_date") // The date it was scheduled for
-  scheduledTime String       @map("scheduled_time") // e.g., "08:00"
+  scheduledTime String       @map("scheduled_time") // e.g., "08:00 AM"
+  timeSlot      TimeSlot     @map("time_slot")
   status        IntakeStatus
   takenAt       DateTime?    @map("taken_at") // When actually taken (null if missed)
   createdAt     DateTime     @default(now()) @map("created_at")
 
   user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   medication Medication @relation(fields: [medicationId], references: [id], onDelete: Cascade)
+  schedule   Schedule?  @relation(fields: [scheduleId], references: [id], onDelete: SetNull)
 
   @@map("medication_logs")
 }

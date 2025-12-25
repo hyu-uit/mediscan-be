@@ -23,12 +23,8 @@ const medicationMissedWorker = new Worker<MedicationMissedJobData>(
       return { success: false, reason: "Log not found" };
     }
 
-    // If status is still pending (not CONFIRMED or LATE), mark as MISSED
-    if (
-      medicationLog.status !== "CONFIRMED" &&
-      medicationLog.status !== "LATE" &&
-      medicationLog.status !== "SKIPPED"
-    ) {
+    // If status is still PENDING (not yet taken), mark as MISSED
+    if (medicationLog.status === "PENDING") {
       await prisma.medicationLog.update({
         where: { id: medicationLogId },
         data: { status: "MISSED" },

@@ -5,6 +5,7 @@ import {
   hasTimePassed,
   getDelayUntil,
   shouldScheduleToday,
+  getTodayUTC,
 } from "../utils/time";
 
 interface ScheduleWithMedication {
@@ -20,19 +21,34 @@ async function queueReminderForSchedule(
   today: Date
 ): Promise<boolean> {
   try {
-    if (hasTimePassed(schedule.time)) return false;
+    const timePassed = hasTimePassed(schedule.time);
 
+    // Set status based on whether time has passed
+    // MISSED for passed times, PENDING for upcoming times
+    const status = timePassed ? "MISSED" : "PENDING";
+
+    // Always create the medication log with scheduleId link
     const medicationLog = await prisma.medicationLog.create({
       data: {
         userId,
         medicationId: schedule.medication.id,
+        scheduleId: schedule.id,
         timeSlot: schedule.type as TimeSlot,
         scheduledDate: today,
         scheduledTime: schedule.time,
-        status: "MISSED",
+        status,
       },
     });
 
+    // If time has passed, don't queue reminder
+    if (timePassed) {
+      console.log(
+        `⏭️ Created log for ${schedule.medication.name} at ${schedule.time} (already passed, marked as MISSED)`
+      );
+      return true;
+    }
+
+    // Queue the reminder job for future times
     const delay = getDelayUntil(schedule.time);
 
     await medicationReminderQueue.add(
@@ -51,7 +67,7 @@ async function queueReminderForSchedule(
     console.log(
       `📅 Scheduled ${schedule.medication.name} at ${
         schedule.time
-      } (${Math.round(delay / 60000)} mins)`
+      } (${Math.round(delay / 60000)} mins, status: PENDING)`
     );
     return true;
   } catch (error) {
@@ -61,8 +77,7 @@ async function queueReminderForSchedule(
 }
 
 export async function scheduleUserMedications(userId: string) {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const today = getTodayUTC();
 
   const medications = await prisma.medication.findMany({
     where: { userId, isActive: true },

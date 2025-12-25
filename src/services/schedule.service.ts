@@ -11,6 +11,8 @@ import {
   getDelayUntil,
   shouldScheduleToday,
   shouldScheduleOnDate,
+  getTodayUTC,
+  getDateUTC,
   MedicationFrequency,
 } from "../utils/time";
 import { BadRequestError } from "../utils/errors";
@@ -96,27 +98,35 @@ async function queueSingleReminder(
   schedule: { id: string; time: string; type: string }
 ): Promise<boolean> {
   try {
-    if (hasTimePassed(schedule.time)) {
-      console.log(
-        `⏭️ Skipping ${medication.name} at ${schedule.time} (passed)`
-      );
-      return false;
-    }
+    const today = getTodayUTC();
+    const timePassed = hasTimePassed(schedule.time);
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    // Set status based on whether time has passed
+    // MISSED for passed times, PENDING for upcoming times
+    const status = timePassed ? "MISSED" : "PENDING";
 
+    // Always create the medication log with scheduleId link
     const medicationLog = await prisma.medicationLog.create({
       data: {
         userId,
         medicationId: medication.id,
+        scheduleId: schedule.id,
         timeSlot: schedule.type as TimeSlot,
         scheduledDate: today,
         scheduledTime: schedule.time,
-        status: "MISSED",
+        status,
       },
     });
 
+    // If time has passed, don't queue reminder
+    if (timePassed) {
+      console.log(
+        `⏭️ Created log for ${medication.name} at ${schedule.time} (already passed, marked as MISSED)`
+      );
+      return true;
+    }
+
+    // Queue the reminder job for future times
     const delay = getDelayUntil(schedule.time);
 
     await medicationReminderQueue.add(
@@ -135,7 +145,7 @@ async function queueSingleReminder(
     console.log(
       `📅 Queued ${medication.name} at ${schedule.time} (${Math.round(
         delay / 60000
-      )} mins)`
+      )} mins, status: PENDING)`
     );
     return true;
   } catch (error) {
@@ -231,12 +241,25 @@ export async function deleteSchedule(id: string) {
 export async function getTodaySchedule(userId: string) {
   if (!userId) throw new BadRequestError("userId is required");
 
+  const today = getTodayUTC();
+  const tomorrow = new Date(today);
+  tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+
+  // Get medications with schedules and their logs for today (using scheduleId JOIN)
   const medications = await prisma.medication.findMany({
     where: { userId, isActive: true },
     include: {
       schedules: {
         where: { isActive: true },
         orderBy: { time: "asc" },
+        include: {
+          medicationLogs: {
+            where: {
+              scheduledDate: { gte: today, lt: tomorrow },
+            },
+            take: 1, // Only get today's log for this schedule
+          },
+        },
       },
     },
   });
@@ -244,19 +267,25 @@ export async function getTodaySchedule(userId: string) {
   // Filter medications that should be scheduled today
   const medicationsToday = medications.filter(shouldScheduleToday);
 
-  // Flatten schedules with medication info
+  // Flatten schedules with medication info and status
   const todaySchedules = medicationsToday.flatMap((medication) =>
-    medication.schedules.map((schedule) => ({
-      id: schedule.id,
-      medicationId: medication.id,
-      medicationName: medication.name,
-      dosage: medication.dosage,
-      unit: medication.unit,
-      instructions: medication.instructions,
-      time: schedule.time,
-      timeSlot: schedule.type,
-      isPassed: hasTimePassed(schedule.time),
-    }))
+    medication.schedules.map((schedule) => {
+      const log = schedule.medicationLogs[0]; // Today's log for this schedule
+      return {
+        id: schedule.id,
+        logId: log?.id || null,
+        medicationId: medication.id,
+        medicationName: medication.name,
+        dosage: medication.dosage,
+        unit: medication.unit,
+        instructions: medication.instructions,
+        time: schedule.time,
+        timeSlot: schedule.type,
+        status: log?.status || null,
+        takenAt: log?.takenAt || null,
+        isPassed: hasTimePassed(schedule.time),
+      };
+    })
   );
 
   // Sort by time
@@ -266,8 +295,14 @@ export async function getTodaySchedule(userId: string) {
     return timeA.localeCompare(timeB);
   });
 
-  // Count remaining (not passed)
-  const remainingCount = todaySchedules.filter((s) => !s.isPassed).length;
+  // Count remaining (not taken/skipped and not passed)
+  const remainingCount = todaySchedules.filter(
+    (s) =>
+      !s.isPassed &&
+      s.status !== "CONFIRMED" &&
+      s.status !== "LATE" &&
+      s.status !== "SKIPPED"
+  ).length;
 
   return {
     schedules: todaySchedules,
@@ -286,12 +321,25 @@ export async function getScheduleByDate(userId: string, date: string) {
     throw new BadRequestError("Invalid date format. Use YYYY-MM-DD");
   }
 
+  const target = getDateUTC(targetDate);
+  const nextDay = new Date(target);
+  nextDay.setUTCDate(nextDay.getUTCDate() + 1);
+
+  // Get medications with schedules and their logs for target date (using scheduleId JOIN)
   const medications = await prisma.medication.findMany({
     where: { userId, isActive: true },
     include: {
       schedules: {
         where: { isActive: true },
         orderBy: { time: "asc" },
+        include: {
+          medicationLogs: {
+            where: {
+              scheduledDate: { gte: target, lt: nextDay },
+            },
+            take: 1, // Only get the log for this date
+          },
+        },
       },
     },
   });
@@ -302,25 +350,28 @@ export async function getScheduleByDate(userId: string, date: string) {
   );
 
   // Check if target date is today (for isPassed calculation)
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const target = new Date(targetDate);
-  target.setHours(0, 0, 0, 0);
+  const today = getTodayUTC();
   const isToday = today.getTime() === target.getTime();
 
-  // Flatten schedules with medication info
+  // Flatten schedules with medication info and status
   const schedules = medicationsForDate.flatMap((medication) =>
-    medication.schedules.map((schedule) => ({
-      id: schedule.id,
-      medicationId: medication.id,
-      medicationName: medication.name,
-      dosage: medication.dosage,
-      unit: medication.unit,
-      instructions: medication.instructions,
-      time: schedule.time,
-      timeSlot: schedule.type,
-      isPassed: isToday ? hasTimePassed(schedule.time) : target < today,
-    }))
+    medication.schedules.map((schedule) => {
+      const log = schedule.medicationLogs[0]; // Log for this schedule on target date
+      return {
+        id: schedule.id,
+        logId: log?.id || null,
+        medicationId: medication.id,
+        medicationName: medication.name,
+        dosage: medication.dosage,
+        unit: medication.unit,
+        instructions: medication.instructions,
+        time: schedule.time,
+        timeSlot: schedule.type,
+        status: log?.status || null,
+        takenAt: log?.takenAt || null,
+        isPassed: isToday ? hasTimePassed(schedule.time) : target < today,
+      };
+    })
   );
 
   // Sort by time
