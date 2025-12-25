@@ -10,6 +10,7 @@ import medicationRoutes from "./routes/medication.routes";
 import scheduleRoutes from "./routes/schedule.routes";
 import userSettingsRoutes from "./routes/user-settings.routes";
 import medicationLogRoutes from "./routes/medication-log.routes";
+import scanRoutes from "./routes/scan.routes";
 
 import { authMiddleware } from "./middleware/auth.middleware";
 import { errorHandler, notFoundHandler } from "./middleware/error.middleware";
@@ -36,6 +37,7 @@ app.use("/api/medications", authMiddleware, medicationRoutes);
 app.use("/api/schedules", authMiddleware, scheduleRoutes);
 app.use("/api/user-settings", authMiddleware, userSettingsRoutes);
 app.use("/api/medication-logs", authMiddleware, medicationLogRoutes);
+app.use("/api/scan", authMiddleware, scanRoutes);
 
 // Error Handling
 app.use(notFoundHandler);
