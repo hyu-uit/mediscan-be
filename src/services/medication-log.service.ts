@@ -191,3 +191,48 @@ export async function getIntakeStats(userId: string, period: Period) {
       .split("T")[0],
   };
 }
+
+// Get logs for a period with medication details
+export async function getLogsForPeriod(userId: string, period: Period) {
+  if (!userId) throw new BadRequestError("userId is required");
+  if (!["daily", "weekly", "monthly"].includes(period)) {
+    throw new BadRequestError("period must be daily, weekly, or monthly");
+  }
+
+  const { start, end } = getPeriodRange(period, 0);
+
+  const logs = await prisma.medicationLog.findMany({
+    where: {
+      userId,
+      scheduledDate: { gte: start, lt: end },
+    },
+    include: {
+      medication: true,
+      schedule: true,
+    },
+    orderBy: [{ scheduledDate: "desc" }, { scheduledTime: "asc" }],
+  });
+
+  // Transform to match schedule response format
+  const formattedLogs = logs.map((log) => ({
+    id: log.schedule?.id || null,
+    logId: log.id,
+    medicationId: log.medicationId,
+    medicationName: log.medication.name,
+    dosage: log.medication.dosage,
+    unit: log.medication.unit,
+    instructions: log.medication.instructions,
+    scheduledDate: log.scheduledDate.toISOString().split("T")[0],
+    time: log.scheduledTime,
+    timeSlot: log.timeSlot,
+    status: log.status,
+    takenAt: log.takenAt,
+  }));
+
+  return {
+    period,
+    periodStart: start.toISOString().split("T")[0],
+    periodEnd: new Date(end.getTime() - 1).toISOString().split("T")[0],
+    logs: formattedLogs,
+  };
+}

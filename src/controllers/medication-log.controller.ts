@@ -99,3 +99,36 @@ export async function getStats(req: AuthRequest, res: Response) {
     );
   }
 }
+
+export async function getHistory(req: AuthRequest, res: Response) {
+  try {
+    const userId = req.user!.userId;
+    const { period } = req.query;
+
+    if (!period || !["daily", "weekly", "monthly"].includes(period as string)) {
+      return sendError(
+        res,
+        "period query parameter is required (daily, weekly, or monthly)",
+        HTTP_STATUS.BAD_REQUEST,
+        req.path
+      );
+    }
+
+    const result = await medicationLogService.getLogsForPeriod(
+      userId,
+      period as "daily" | "weekly" | "monthly"
+    );
+    return sendSuccess(res, result, HTTP_STATUS.OK);
+  } catch (error) {
+    if (error instanceof AppError) {
+      return sendError(res, error.message, error.statusCode, req.path);
+    }
+    console.error("Error fetching history:", error);
+    return sendError(
+      res,
+      "Failed to fetch history",
+      HTTP_STATUS.INTERNAL_ERROR,
+      req.path
+    );
+  }
+}
