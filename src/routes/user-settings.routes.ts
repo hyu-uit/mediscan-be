@@ -9,4 +9,7 @@ router.patch("/", userSettingsController.updateUserSettings);
 router.put("/", userSettingsController.upsertUserSettings);
 router.delete("/", userSettingsController.deleteUserSettings);
 
+// FCM token registration
+router.post("/fcm-token", userSettingsController.registerFcmToken);
+
 export default router;

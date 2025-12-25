@@ -81,6 +81,7 @@ model UserSettings {
   pushNotifications Boolean @default(true) @map("push_notifications")
   automatedCalls    Boolean @default(false) @map("automated_calls")
   darkMode          Boolean @default(false) @map("dark_mode")
+  fcmToken          String? @map("fcm_token") // Firebase Cloud Messaging token
 
   // Default times for each slot (user can customize)
   morningTime     String @default("08:00") @map("morning_time")

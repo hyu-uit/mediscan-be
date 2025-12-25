@@ -4,6 +4,7 @@ import {
   MedicationReminderJobData,
   medicationMissedQueue,
 } from "../queues/medication.queue";
+import { sendMedicationReminder } from "../services/notification.service";
 
 // This worker handles sending notifications when medication time is up
 const medicationReminderWorker = new Worker<MedicationReminderJobData>(
@@ -16,12 +17,17 @@ const medicationReminderWorker = new Worker<MedicationReminderJobData>(
       `🔔 Sending reminder to user ${userId}: Take ${medicationName} (${timeSlot}) at ${scheduledTime}`
     );
 
-    // TODO: Implement actual notification sending (push notification, email, SMS, etc.)
-    // For now, we just log the notification
-    // You can integrate with:
-    // - Firebase Cloud Messaging for push notifications
-    // - Twilio for SMS
-    // - SendGrid/Nodemailer for email
+    // Send push notification via FCM
+    const notificationSent = await sendMedicationReminder(
+      userId,
+      medicationName,
+      scheduledTime,
+      medicationLogId
+    );
+
+    if (notificationSent) {
+      console.log(`📲 Push notification sent for ${medicationName}`);
+    }
 
     // Schedule the "missed" check job to run 10 minutes from now
     await medicationMissedQueue.add(
@@ -37,7 +43,7 @@ const medicationReminderWorker = new Worker<MedicationReminderJobData>(
       `⏰ Scheduled missed check for ${medicationLogId} in 10 minutes`
     );
 
-    return { success: true, notified: true };
+    return { success: true, notified: notificationSent };
   },
   {
     connection: redisConnection,
@@ -51,6 +57,14 @@ medicationReminderWorker.on("completed", (job) => {
 
 medicationReminderWorker.on("failed", (job, err) => {
   console.error(`❌ Reminder job ${job?.id} failed:`, err.message);
+});
+
+medicationReminderWorker.on("ready", () => {
+  console.log("🔔 Medication Reminder Worker is ready and listening for jobs");
+});
+
+medicationReminderWorker.on("error", (err) => {
+  console.error("❌ Reminder Worker error:", err.message);
 });
 
 export default medicationReminderWorker;

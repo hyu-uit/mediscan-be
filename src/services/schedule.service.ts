@@ -161,6 +161,9 @@ async function queueRemindersForMedications(
   medications: (MedicationWithSchedules | null)[]
 ) {
   const promises: Promise<boolean>[] = [];
+  let queuedCount = 0;
+  let skippedFrequencyCount = 0;
+  let passedCount = 0;
 
   for (const medication of medications) {
     if (!medication) continue;
@@ -170,15 +173,31 @@ async function queueRemindersForMedications(
       console.log(
         `⏭️ Skipping ${medication.name} (not scheduled for today based on frequency)`
       );
+      skippedFrequencyCount++;
       continue;
     }
 
+    console.log(
+      `💊 Processing: ${medication.name} (${medication.schedules.length} schedules)`
+    );
+
     for (const schedule of medication.schedules) {
+      const isPassed = hasTimePassed(schedule.time);
+      if (isPassed) {
+        passedCount++;
+      } else {
+        queuedCount++;
+      }
       promises.push(queueSingleReminder(userId, medication, schedule));
     }
   }
 
   await Promise.all(promises);
+
+  console.log(`\n📊 ========== QUEUE SUMMARY ==========`);
+  console.log(`   ✅ Queued for notification: ${queuedCount}`);
+  console.log(`   ⏰ Already passed (MISSED): ${passedCount}`);
+  console.log(`   🔄 Skipped (frequency): ${skippedFrequencyCount}`);
 }
 
 // Public API
@@ -190,11 +209,23 @@ export async function createBulkMedicationsWithSchedules(
   if (!medications?.length)
     throw new BadRequestError("medications are required");
 
+  console.log(`\n🚀 ========== BULK MEDICATION CREATION ==========`);
+  console.log(`👤 User: ${userId}`);
+  console.log(`💊 Medications to create: ${medications.length}`);
+
   const createdMedications = await createMedicationsInTransaction(
     userId,
     medications
   );
+
+  console.log(
+    `✅ Created ${createdMedications.length} medications in database`
+  );
+  console.log(`\n📋 ========== QUEUING REMINDERS ==========`);
+
   await queueRemindersForMedications(userId, createdMedications);
+
+  console.log(`🏁 ========== BULK CREATION COMPLETE ==========\n`);
 
   return createdMedications;
 }

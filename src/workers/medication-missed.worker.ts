@@ -2,6 +2,7 @@ import { Worker, Job } from "bullmq";
 import redisConnection from "../config/redis";
 import { MedicationMissedJobData } from "../queues/medication.queue";
 import prisma from "../utils/prisma";
+import { sendMissedMedicationAlert } from "../services/notification.service";
 
 // This worker checks if medication was taken and marks it as missed if not
 const medicationMissedWorker = new Worker<MedicationMissedJobData>(
@@ -13,9 +14,12 @@ const medicationMissedWorker = new Worker<MedicationMissedJobData>(
       `🔍 Checking if medication log ${medicationLogId} was taken...`
     );
 
-    // Find the medication log
+    // Find the medication log with medication details
     const medicationLog = await prisma.medicationLog.findUnique({
       where: { id: medicationLogId },
+      include: {
+        medication: true,
+      },
     });
 
     if (!medicationLog) {
@@ -32,8 +36,11 @@ const medicationMissedWorker = new Worker<MedicationMissedJobData>(
 
       console.log(`❌ Medication log ${medicationLogId} marked as MISSED`);
 
-      // TODO: Send notification that medication was missed
-      // This could trigger emergency contact notification if configured
+      // Send missed medication alert
+      await sendMissedMedicationAlert(
+        medicationLog.userId,
+        medicationLog.medication.name
+      );
 
       return { success: true, status: "MISSED" };
     }
@@ -55,6 +62,14 @@ medicationMissedWorker.on("completed", (job) => {
 
 medicationMissedWorker.on("failed", (job, err) => {
   console.error(`❌ Missed check job ${job?.id} failed:`, err.message);
+});
+
+medicationMissedWorker.on("ready", () => {
+  console.log("⏰ Medication Missed Worker is ready and listening for jobs");
+});
+
+medicationMissedWorker.on("error", (err) => {
+  console.error("❌ Missed Worker error:", err.message);
 });
 
 export default medicationMissedWorker;

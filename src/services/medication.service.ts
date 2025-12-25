@@ -2,12 +2,25 @@ import prisma from "../utils/prisma";
 import { CreateMedicationInput, UpdateMedicationInput } from "../types";
 import { DEFAULTS } from "../constants";
 import { BadRequestError, NotFoundError } from "../utils/errors";
+import { medicationReminderQueue } from "../queues/medication.queue";
+import {
+  hasTimePassed,
+  getDelayUntil,
+  shouldScheduleToday,
+  getTodayUTC,
+  MedicationFrequency,
+} from "../utils/time";
+import { TimeSlot } from "@prisma/client";
 
 export async function createMedication(data: CreateMedicationInput) {
   if (!data.userId) throw new BadRequestError("userId is required");
   if (!data.name) throw new BadRequestError("name is required");
 
-  return prisma.$transaction(async (tx) => {
+  console.log(`\n🚀 ========== CREATE MEDICATION ==========`);
+  console.log(`👤 User: ${data.userId}`);
+  console.log(`💊 Medication: ${data.name}`);
+
+  const result = await prisma.$transaction(async (tx) => {
     const medication = await tx.medication.create({
       data: {
         userId: data.userId,
@@ -39,6 +52,92 @@ export async function createMedication(data: CreateMedicationInput) {
       include: { schedules: true },
     });
   });
+
+  // Queue BullMQ reminders if medication created successfully
+  if (result) {
+    console.log(
+      `✅ Created medication with ${result.schedules.length} schedules`
+    );
+    await queueRemindersForMedication(data.userId, result);
+  }
+
+  console.log(`🏁 ========== MEDICATION CREATED ==========\n`);
+
+  return result;
+}
+
+// Queue reminders for a single medication
+async function queueRemindersForMedication(
+  userId: string,
+  medication: MedicationFrequency & {
+    id: string;
+    name: string;
+    schedules: Array<{ id: string; time: string; type: string }>;
+  }
+) {
+  // Check if medication should be scheduled today based on frequency
+  if (!shouldScheduleToday(medication)) {
+    console.log(
+      `⏭️ Skipping ${medication.name} (not scheduled for today based on frequency)`
+    );
+    return;
+  }
+
+  const today = getTodayUTC();
+  let queuedCount = 0;
+  let passedCount = 0;
+
+  for (const schedule of medication.schedules) {
+    const timePassed = hasTimePassed(schedule.time);
+    const status = timePassed ? "MISSED" : "PENDING";
+
+    // Create medication log
+    const medicationLog = await prisma.medicationLog.create({
+      data: {
+        userId,
+        medicationId: medication.id,
+        scheduleId: schedule.id,
+        timeSlot: schedule.type as TimeSlot,
+        scheduledDate: today,
+        scheduledTime: schedule.time,
+        status,
+      },
+    });
+
+    if (timePassed) {
+      console.log(
+        `⏭️ ${medication.name} at ${schedule.time} (already passed, marked as MISSED)`
+      );
+      passedCount++;
+    } else {
+      // Queue the reminder job for future times
+      const delay = getDelayUntil(schedule.time);
+
+      await medicationReminderQueue.add(
+        "send-reminder",
+        {
+          medicationLogId: medicationLog.id,
+          userId,
+          medicationId: medication.id,
+          medicationName: medication.name,
+          timeSlot: schedule.type,
+          scheduledTime: schedule.time,
+        },
+        { delay, jobId: `reminder-${medicationLog.id}` }
+      );
+
+      console.log(
+        `📅 Queued ${medication.name} at ${schedule.time} (${Math.round(
+          delay / 60000
+        )} mins)`
+      );
+      queuedCount++;
+    }
+  }
+
+  console.log(
+    `📊 Summary: ✅ Queued: ${queuedCount} | ⏰ Passed: ${passedCount}`
+  );
 }
 
 export async function getMedications(userId: string) {
