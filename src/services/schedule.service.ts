@@ -10,6 +10,7 @@ import {
   hasTimePassed,
   getDelayUntil,
   shouldScheduleToday,
+  shouldScheduleOnDate,
   MedicationFrequency,
 } from "../utils/time";
 import { BadRequestError } from "../utils/errors";
@@ -273,4 +274,61 @@ export async function getTodaySchedule(userId: string) {
     totalCount: todaySchedules.length,
     remainingCount,
   };
+}
+
+// Get schedule for a specific date
+export async function getScheduleByDate(userId: string, date: string) {
+  if (!userId) throw new BadRequestError("userId is required");
+  if (!date) throw new BadRequestError("date is required");
+
+  const targetDate = new Date(date);
+  if (isNaN(targetDate.getTime())) {
+    throw new BadRequestError("Invalid date format. Use YYYY-MM-DD");
+  }
+
+  const medications = await prisma.medication.findMany({
+    where: { userId, isActive: true },
+    include: {
+      schedules: {
+        where: { isActive: true },
+        orderBy: { time: "asc" },
+      },
+    },
+  });
+
+  // Filter medications that should be scheduled on the target date
+  const medicationsForDate = medications.filter((med) =>
+    shouldScheduleOnDate(med, targetDate)
+  );
+
+  // Check if target date is today (for isPassed calculation)
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const target = new Date(targetDate);
+  target.setHours(0, 0, 0, 0);
+  const isToday = today.getTime() === target.getTime();
+
+  // Flatten schedules with medication info
+  const schedules = medicationsForDate.flatMap((medication) =>
+    medication.schedules.map((schedule) => ({
+      id: schedule.id,
+      medicationId: medication.id,
+      medicationName: medication.name,
+      dosage: medication.dosage,
+      unit: medication.unit,
+      instructions: medication.instructions,
+      time: schedule.time,
+      timeSlot: schedule.type,
+      isPassed: isToday ? hasTimePassed(schedule.time) : target < today,
+    }))
+  );
+
+  // Sort by time
+  schedules.sort((a, b) => {
+    const timeA = a.time.replace(/[^0-9:]/g, "");
+    const timeB = b.time.replace(/[^0-9:]/g, "");
+    return timeA.localeCompare(timeB);
+  });
+
+  return { schedules };
 }

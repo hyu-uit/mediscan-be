@@ -164,3 +164,33 @@ export async function getTodaySchedule(req: AuthRequest, res: Response) {
     );
   }
 }
+
+export async function getScheduleByDate(req: AuthRequest, res: Response) {
+  try {
+    const userId = req.user!.userId;
+    const { date } = req.params;
+
+    if (!date) {
+      return sendError(
+        res,
+        "date parameter is required (format: YYYY-MM-DD)",
+        HTTP_STATUS.BAD_REQUEST,
+        req.path
+      );
+    }
+
+    const result = await scheduleService.getScheduleByDate(userId, date);
+    return sendSuccess(res, result, HTTP_STATUS.OK);
+  } catch (error) {
+    if (error instanceof AppError) {
+      return sendError(res, error.message, error.statusCode, req.path);
+    }
+    console.error("Error fetching schedule by date:", error);
+    return sendError(
+      res,
+      "Failed to fetch schedule",
+      HTTP_STATUS.INTERNAL_ERROR,
+      req.path
+    );
+  }
+}

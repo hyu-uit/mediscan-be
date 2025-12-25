@@ -4,6 +4,7 @@ import * as scheduleController from "../controllers/schedule.controller";
 const router = Router();
 
 router.get("/today", scheduleController.getTodaySchedule);
+router.get("/date/:date", scheduleController.getScheduleByDate);
 router.post("/bulk", scheduleController.createBulkMedicationsWithSchedules);
 router.post("/", scheduleController.createSchedule);
 router.get(

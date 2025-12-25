@@ -54,21 +54,27 @@ export function getDelayUntil(timeStr: string): number {
 }
 
 /**
- * Check if a medication should be scheduled today based on its frequency settings
+ * Check if a medication should be scheduled on a specific date based on its frequency settings
  */
-export function shouldScheduleToday(medication: MedicationFrequency): boolean {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+export function shouldScheduleOnDate(
+  medication: MedicationFrequency,
+  targetDate: Date
+): boolean {
+  const target = new Date(targetDate);
+  target.setHours(0, 0, 0, 0);
+
+  const createdDate = new Date(medication.createdAt);
+  createdDate.setHours(0, 0, 0, 0);
+
+  // Don't schedule for dates before medication was created
+  if (target < createdDate) return false;
 
   switch (medication.frequencyType) {
     case "DAILY":
       return true;
 
     case "INTERVAL": {
-      const createdDate = new Date(medication.createdAt);
-      createdDate.setHours(0, 0, 0, 0);
-
-      const diffTime = today.getTime() - createdDate.getTime();
+      const diffTime = target.getTime() - createdDate.getTime();
       const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
 
       if (medication.intervalUnit === "DAYS") {
@@ -77,21 +83,19 @@ export function shouldScheduleToday(medication: MedicationFrequency): boolean {
 
       if (medication.intervalUnit === "WEEKS") {
         const diffWeeks = Math.floor(diffDays / 7);
-        // Schedule if we're on the right week AND same day of week as creation
         return (
           diffWeeks % medication.intervalValue === 0 &&
-          today.getDay() === createdDate.getDay()
+          target.getDay() === createdDate.getDay()
         );
       }
 
       if (medication.intervalUnit === "MONTHS") {
         const diffMonths =
-          (today.getFullYear() - createdDate.getFullYear()) * 12 +
-          (today.getMonth() - createdDate.getMonth());
-        // Schedule if we're on the right month AND same day of month as creation
+          (target.getFullYear() - createdDate.getFullYear()) * 12 +
+          (target.getMonth() - createdDate.getMonth());
         return (
           diffMonths % medication.intervalValue === 0 &&
-          today.getDate() === createdDate.getDate()
+          target.getDate() === createdDate.getDate()
         );
       }
 
@@ -100,11 +104,20 @@ export function shouldScheduleToday(medication: MedicationFrequency): boolean {
 
     case "SPECIFIC_DAYS": {
       const dayNames = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
-      const todayName = dayNames[today.getDay()];
-      return medication.selectedDays.includes(todayName);
+      const targetDayName = dayNames[target.getDay()];
+      return medication.selectedDays
+        .map((d) => d.toUpperCase())
+        .includes(targetDayName);
     }
 
     default:
       return true;
   }
+}
+
+/**
+ * Check if a medication should be scheduled today based on its frequency settings
+ */
+export function shouldScheduleToday(medication: MedicationFrequency): boolean {
+  return shouldScheduleOnDate(medication, new Date());
 }
