@@ -1,39 +1,56 @@
 # MediScan Backend
 
-Express.js backend with PostgreSQL and Prisma ORM.
+Medication reminder backend with Node.js, Express, TypeScript, Prisma.
+
+## Project Structure
+
+```
+src/
+├── index.ts              # Entry point
+├── constants/            # Constants, enum mappings
+├── types/                # TypeScript types
+├── utils/                # Utilities (prisma, response, errors, time)
+├── middleware/           # Auth, error handling
+├── routes/               # URL routing
+├── controllers/          # HTTP handlers
+├── services/             # Business logic
+├── queues/               # BullMQ queues
+└── workers/              # Background jobs
+```
 
 ## Setup
 
-1. Install dependencies:
-
 ```bash
 npm install
+cp .env.example .env
+npx prisma migrate dev
+npm run dev
 ```
 
-1. Configure your database URL in `.env`:
+## API Endpoints
 
-```
-DATABASE_URL="postgresql://user:password@localhost:5432/mediscan?schema=public"
-```
+### Auth
+- `POST /api/auth/register` - Register
+- `POST /api/auth/login` - Login
 
-1. Generate Prisma client:
+### Medications
+- `GET /api/medications` - Get all
+- `POST /api/medications` - Create
+- `PATCH /api/medications/:id` - Update
+- `DELETE /api/medications/:id` - Delete
 
-```bash
-npm run db:generate
-```
+### Schedules
+- `POST /api/schedules/bulk` - Bulk create medications with schedules
+- `POST /api/schedules` - Create schedule
+- `GET /api/schedules/medication/:id` - Get by medication
+- `PATCH /api/schedules/:id` - Update
+- `DELETE /api/schedules/:id` - Delete
 
-1. Run migrations:
+### Medication Logs
+- `GET /api/medication-logs` - Get logs (today or ?date=)
+- `POST /api/medication-logs/:id/taken` - Mark taken
+- `POST /api/medication-logs/:id/skip` - Skip
 
-```bash
-npm run db:migrate
-```
-
-## Scripts
-
-- `npm run dev` - Start development server with hot reload
-- `npm run build` - Build for production
-- `npm start` - Run production server
-- `npm run db:generate` - Generate Prisma client
-- `npm run db:migrate` - Run database migrations
-- `npm run db:push` - Push schema changes to database
-- `npm run db:studio` - Open Prisma Studio
+### User Settings
+- `GET /api/user-settings` - Get
+- `PATCH /api/user-settings` - Update

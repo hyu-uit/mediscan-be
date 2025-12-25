@@ -1,147 +1,108 @@
 import prisma from "../utils/prisma";
-import {
-  FrequencyType,
-  DosageUnit,
-  IntervalUnit,
-  TimeSlot,
-} from "@prisma/client";
+import { CreateMedicationInput, UpdateMedicationInput } from "../types";
+import { DEFAULTS } from "../constants";
+import { BadRequestError, NotFoundError } from "../utils/errors";
 
-interface IntakeTime {
-  id: string;
-  time: string; // e.g., "08:00 AM" - stored as-is
-  type: TimeSlot; // TimeSlot values for UI color
-}
+export async function createMedication(data: CreateMedicationInput) {
+  if (!data.userId) throw new BadRequestError("userId is required");
+  if (!data.name) throw new BadRequestError("name is required");
 
-interface CreateMedicationInput {
-  userId: string;
-  name: string;
-  dosage?: string;
-  unit?: DosageUnit;
-  instructions?: string;
-  notes?: string;
-  frequencyType?: FrequencyType;
-  intervalValue?: number;
-  intervalUnit?: IntervalUnit;
-  selectedDays?: string[];
-  intakeTimes?: IntakeTime[];
-  imageUrl?: string;
-}
-
-export const createMedication = async (data: CreateMedicationInput) => {
-  // Create medication with schedules in a transaction
   return prisma.$transaction(async (tx) => {
-    // Create medication
     const medication = await tx.medication.create({
       data: {
         userId: data.userId,
         name: data.name,
         dosage: data.dosage,
-        unit: data.unit || "MG",
+        unit: data.unit || DEFAULTS.DOSAGE_UNIT,
         instructions: data.instructions,
         notes: data.notes,
-        frequencyType: data.frequencyType || "DAILY",
-        intervalValue: data.intervalValue || 1,
-        intervalUnit: data.intervalUnit || "DAYS",
+        frequencyType: data.frequencyType || DEFAULTS.FREQUENCY_TYPE,
+        intervalValue: data.intervalValue || DEFAULTS.INTERVAL_VALUE,
+        intervalUnit: data.intervalUnit || DEFAULTS.INTERVAL_UNIT,
         selectedDays: data.selectedDays || [],
         imageUrl: data.imageUrl,
       },
     });
 
-    // Create schedules from intakeTimes
     if (data.intakeTimes && data.intakeTimes.length > 0) {
-      const schedules = data.intakeTimes.map((intake) => ({
-        medicationId: medication.id,
-        time: intake.time,
-        type: intake.type,
-      }));
-
       await tx.schedule.createMany({
-        data: schedules,
+        data: data.intakeTimes.map((intake) => ({
+          medicationId: medication.id,
+          time: intake.time,
+          type: intake.type,
+        })),
       });
     }
 
-    // Return medication with schedules
     return tx.medication.findUnique({
       where: { id: medication.id },
       include: { schedules: true },
     });
   });
-};
+}
 
-export const getMedications = async (userId: string) => {
+export async function getMedications(userId: string) {
+  if (!userId) throw new BadRequestError("userId is required");
+
   return prisma.medication.findMany({
     where: { userId, isActive: true },
     include: { schedules: true },
     orderBy: { createdAt: "desc" },
   });
-};
+}
 
-export const getMedicationById = async (id: string) => {
+export async function getMedicationById(id: string) {
+  if (!id) throw new BadRequestError("id is required");
+
   return prisma.medication.findUnique({
     where: { id },
     include: { schedules: true },
   });
-};
-
-interface UpdateMedicationInput {
-  name?: string;
-  dosage?: string;
-  unit?: DosageUnit;
-  instructions?: string;
-  notes?: string;
-  frequencyType?: FrequencyType;
-  intervalValue?: number;
-  intervalUnit?: IntervalUnit;
-  selectedDays?: string[];
-  intakeTimes?: IntakeTime[];
-  imageUrl?: string;
-  isActive?: boolean;
 }
 
-export const updateMedication = async (
+export async function updateMedication(
   id: string,
   data: UpdateMedicationInput
-) => {
+) {
+  if (!id) throw new BadRequestError("id is required");
+
+  const existing = await prisma.medication.findUnique({ where: { id } });
+  if (!existing) throw new NotFoundError("Medication");
+
   const { intakeTimes, ...medicationData } = data;
 
   return prisma.$transaction(async (tx) => {
-    // Update medication
-    const medication = await tx.medication.update({
+    await tx.medication.update({
       where: { id },
       data: medicationData,
     });
 
-    // If intakeTimes are provided, replace all schedules
     if (intakeTimes !== undefined) {
-      // Delete existing schedules
-      await tx.schedule.deleteMany({
-        where: { medicationId: id },
-      });
+      await tx.schedule.deleteMany({ where: { medicationId: id } });
 
-      // Create new schedules
       if (intakeTimes.length > 0) {
-        const schedules = intakeTimes.map((intake) => ({
-          medicationId: id,
-          time: intake.time,
-          type: intake.type,
-        }));
-
         await tx.schedule.createMany({
-          data: schedules,
+          data: intakeTimes.map((intake) => ({
+            medicationId: id,
+            time: intake.time,
+            type: intake.type,
+          })),
         });
       }
     }
 
-    // Return medication with updated schedules
     return tx.medication.findUnique({
       where: { id },
       include: { schedules: true },
     });
   });
-};
+}
 
-export const deleteMedication = async (id: string) => {
-  return prisma.medication.delete({
-    where: { id },
-  });
-};
+export async function deleteMedication(id: string) {
+  if (!id) throw new BadRequestError("id is required");
+
+  const existing = await prisma.medication.findUnique({ where: { id } });
+  if (!existing) throw new NotFoundError("Medication");
+
+  return prisma.medication.delete({ where: { id } });
+}

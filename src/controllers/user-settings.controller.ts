@@ -1,48 +1,47 @@
 import { Response } from "express";
-import { AuthRequest } from "../middleware/auth.middleware";
+import { AuthRequest } from "../types";
 import * as userSettingsService from "../services/user-settings.service";
 import { sendSuccess, sendError } from "../utils/response";
+import { HTTP_STATUS } from "../constants";
+import { AppError } from "../utils/errors";
 
-export const getUserSettings = async (req: AuthRequest, res: Response) => {
+export async function getUserSettings(req: AuthRequest, res: Response) {
   try {
     const userId = req.user!.userId;
     const settings = await userSettingsService.getUserSettings(userId);
 
     if (!settings) {
-      return sendError(res, "User settings not found", 404, req.path);
+      return sendError(res, "User settings not found", HTTP_STATUS.NOT_FOUND, req.path);
     }
 
-    return sendSuccess(res, settings);
+    return sendSuccess(res, settings, HTTP_STATUS.OK);
   } catch (error) {
+    if (error instanceof AppError) {
+      return sendError(res, error.message, error.statusCode, req.path);
+    }
     console.error("Error fetching user settings:", error);
-    return sendError(res, "Failed to fetch user settings", 500, req.path);
+    return sendError(res, "Failed to fetch user settings", HTTP_STATUS.INTERNAL_ERROR, req.path);
   }
-};
+}
 
-export const createUserSettings = async (req: AuthRequest, res: Response) => {
+export async function createUserSettings(req: AuthRequest, res: Response) {
   try {
     const userId = req.user!.userId;
     const settings = await userSettingsService.createUserSettings(userId);
-    return sendSuccess(res, settings, 201);
+    return sendSuccess(res, settings, HTTP_STATUS.CREATED);
   } catch (error) {
+    if (error instanceof AppError) {
+      return sendError(res, error.message, error.statusCode, req.path);
+    }
     console.error("Error creating user settings:", error);
-    return sendError(res, "Failed to create user settings", 500, req.path);
+    return sendError(res, "Failed to create user settings", HTTP_STATUS.INTERNAL_ERROR, req.path);
   }
-};
+}
 
-export const updateUserSettings = async (req: AuthRequest, res: Response) => {
+export async function updateUserSettings(req: AuthRequest, res: Response) {
   try {
     const userId = req.user!.userId;
-    const {
-      pushNotifications,
-      automatedCalls,
-      darkMode,
-      morningTime,
-      noonTime,
-      afternoonTime,
-      nightTime,
-      beforeSleepTime,
-    } = req.body;
+    const { pushNotifications, automatedCalls, darkMode, morningTime, noonTime, afternoonTime, nightTime, beforeSleepTime } = req.body;
 
     const settings = await userSettingsService.updateUserSettings(userId, {
       pushNotifications,
@@ -55,26 +54,20 @@ export const updateUserSettings = async (req: AuthRequest, res: Response) => {
       beforeSleepTime,
     });
 
-    return sendSuccess(res, settings);
+    return sendSuccess(res, settings, HTTP_STATUS.OK);
   } catch (error) {
+    if (error instanceof AppError) {
+      return sendError(res, error.message, error.statusCode, req.path);
+    }
     console.error("Error updating user settings:", error);
-    return sendError(res, "Failed to update user settings", 500, req.path);
+    return sendError(res, "Failed to update user settings", HTTP_STATUS.INTERNAL_ERROR, req.path);
   }
-};
+}
 
-export const upsertUserSettings = async (req: AuthRequest, res: Response) => {
+export async function upsertUserSettings(req: AuthRequest, res: Response) {
   try {
     const userId = req.user!.userId;
-    const {
-      pushNotifications,
-      automatedCalls,
-      darkMode,
-      morningTime,
-      noonTime,
-      afternoonTime,
-      nightTime,
-      beforeSleepTime,
-    } = req.body;
+    const { pushNotifications, automatedCalls, darkMode, morningTime, noonTime, afternoonTime, nightTime, beforeSleepTime } = req.body;
 
     const settings = await userSettingsService.upsertUserSettings(userId, {
       pushNotifications,
@@ -87,20 +80,26 @@ export const upsertUserSettings = async (req: AuthRequest, res: Response) => {
       beforeSleepTime,
     });
 
-    return sendSuccess(res, settings);
+    return sendSuccess(res, settings, HTTP_STATUS.OK);
   } catch (error) {
+    if (error instanceof AppError) {
+      return sendError(res, error.message, error.statusCode, req.path);
+    }
     console.error("Error upserting user settings:", error);
-    return sendError(res, "Failed to upsert user settings", 500, req.path);
+    return sendError(res, "Failed to upsert user settings", HTTP_STATUS.INTERNAL_ERROR, req.path);
   }
-};
+}
 
-export const deleteUserSettings = async (req: AuthRequest, res: Response) => {
+export async function deleteUserSettings(req: AuthRequest, res: Response) {
   try {
     const userId = req.user!.userId;
     await userSettingsService.deleteUserSettings(userId);
-    return sendSuccess(res, null, 204);
+    return sendSuccess(res, null, HTTP_STATUS.NO_CONTENT);
   } catch (error) {
+    if (error instanceof AppError) {
+      return sendError(res, error.message, error.statusCode, req.path);
+    }
     console.error("Error deleting user settings:", error);
-    return sendError(res, "Failed to delete user settings", 500, req.path);
+    return sendError(res, "Failed to delete user settings", HTTP_STATUS.INTERNAL_ERROR, req.path);
   }
-};
+}

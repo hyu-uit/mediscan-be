@@ -6,6 +6,8 @@ import {
   TimeSlot,
 } from "@prisma/client";
 import { medicationReminderQueue } from "../queues/medication.queue";
+import { hasTimePassed, getDelayUntil } from "../utils/time";
+import { BadRequestError } from "../utils/errors";
 
 interface IntakeTime {
   id: string;
@@ -14,7 +16,7 @@ interface IntakeTime {
 }
 
 interface MedicationInput {
-  id: string; // Frontend-generated ID (not used for DB)
+  id: string;
   name: string;
   dosage?: string;
   unit?: DosageUnit;
@@ -27,49 +29,21 @@ interface MedicationInput {
   intakeTimes?: IntakeTime[];
 }
 
-interface CreateScheduleInput {
-  medicationId: string;
-  time: string; // e.g., "08:00 AM"
-  type: string; // e.g., "MORNING", "NOON" - for UI color
+interface MedicationWithSchedules {
+  id: string;
+  name: string;
+  schedules: Array<{ id: string; time: string; type: string }>;
 }
 
-interface UpdateScheduleInput {
-  time?: string;
-  type?: string;
-  isActive?: boolean;
-}
-
-// Convert "08:00 AM" to hours and minutes
-function parseTime(timeStr: string): { hours: number; minutes: number } {
-  const parts = timeStr.split(" ");
-  const [hours, minutes] = parts[0].split(":").map(Number);
-
-  if (parts.length === 2) {
-    const modifier = parts[1];
-    if (modifier === "PM" && hours !== 12) {
-      return { hours: hours + 12, minutes };
-    }
-    if (modifier === "AM" && hours === 12) {
-      return { hours: 0, minutes };
-    }
-  }
-
-  return { hours, minutes };
-}
-
-/**
- * Create multiple medications with their schedules in a single transaction
- * and queue reminders for today
- */
-export const createBulkMedicationsWithSchedules = async (
+// Create medications and schedules in transaction
+async function createMedicationsInTransaction(
   userId: string,
   medications: MedicationInput[]
-) => {
-  const createdMedications = await prisma.$transaction(async (tx) => {
-    const results = [];
+) {
+  return prisma.$transaction(async (tx) => {
+    const results: (MedicationWithSchedules | null)[] = [];
 
     for (const med of medications) {
-      // Create medication
       const medication = await tx.medication.create({
         data: {
           userId,
@@ -87,7 +61,6 @@ export const createBulkMedicationsWithSchedules = async (
         },
       });
 
-      // Create schedules for this medication
       if (med.intakeTimes && med.intakeTimes.length > 0) {
         await tx.schedule.createMany({
           data: med.intakeTimes.map((intake) => ({
@@ -98,7 +71,6 @@ export const createBulkMedicationsWithSchedules = async (
         });
       }
 
-      // Fetch medication with schedules
       const medicationWithSchedules = await tx.medication.findUnique({
         where: { id: medication.id },
         include: { schedules: true },
@@ -109,100 +81,133 @@ export const createBulkMedicationsWithSchedules = async (
 
     return results;
   });
+}
 
-  // Queue reminders for today (outside transaction)
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  for (const medication of createdMedications) {
-    if (!medication) continue;
-
-    for (const schedule of medication.schedules) {
-      const { hours, minutes } = parseTime(schedule.time);
-
-      const scheduledDateTime = new Date(today);
-      scheduledDateTime.setHours(hours, minutes, 0, 0);
-
-      // Skip if time has already passed today
-      if (scheduledDateTime <= new Date()) {
-        console.log(
-          `⏭️ Skipping ${medication.name} at ${schedule.time} (time already passed)`
-        );
-        continue;
-      }
-
-      // Create medication log entry
-      const medicationLog = await prisma.medicationLog.create({
-        data: {
-          userId,
-          medicationId: medication.id,
-          timeSlot: schedule.type as TimeSlot,
-          scheduledDate: today,
-          scheduledTime: schedule.time,
-          status: "MISSED", // Default, will be updated when taken
-        },
-      });
-
-      // Calculate delay until scheduled time
-      const delay = scheduledDateTime.getTime() - Date.now();
-
-      // Add job to queue
-      await medicationReminderQueue.add(
-        "send-reminder",
-        {
-          medicationLogId: medicationLog.id,
-          userId,
-          medicationId: medication.id,
-          medicationName: medication.name,
-          timeSlot: schedule.type,
-          scheduledTime: schedule.time,
-        },
-        {
-          delay,
-          jobId: `reminder-${medicationLog.id}`,
-        }
-      );
-
+// Queue a single reminder
+async function queueSingleReminder(
+  userId: string,
+  medication: MedicationWithSchedules,
+  schedule: { id: string; time: string; type: string }
+): Promise<boolean> {
+  try {
+    if (hasTimePassed(schedule.time)) {
       console.log(
-        `📅 Queued reminder for ${medication.name} at ${
-          schedule.time
-        } (in ${Math.round(delay / 60000)} mins)`
+        `⏭️ Skipping ${medication.name} at ${schedule.time} (passed)`
       );
+      return false;
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const medicationLog = await prisma.medicationLog.create({
+      data: {
+        userId,
+        medicationId: medication.id,
+        timeSlot: schedule.type as TimeSlot,
+        scheduledDate: today,
+        scheduledTime: schedule.time,
+        status: "MISSED",
+      },
+    });
+
+    const delay = getDelayUntil(schedule.time);
+
+    await medicationReminderQueue.add(
+      "send-reminder",
+      {
+        medicationLogId: medicationLog.id,
+        userId,
+        medicationId: medication.id,
+        medicationName: medication.name,
+        timeSlot: schedule.type,
+        scheduledTime: schedule.time,
+      },
+      { delay, jobId: `reminder-${medicationLog.id}` }
+    );
+
+    console.log(
+      `📅 Queued ${medication.name} at ${schedule.time} (${Math.round(
+        delay / 60000
+      )} mins)`
+    );
+    return true;
+  } catch (error) {
+    console.error(`❌ Failed to queue ${medication.name}:`, error);
+    return false;
+  }
+}
+
+// Queue reminders for all medications
+async function queueRemindersForMedications(
+  userId: string,
+  medications: (MedicationWithSchedules | null)[]
+) {
+  const promises: Promise<boolean>[] = [];
+
+  for (const medication of medications) {
+    if (!medication) continue;
+    for (const schedule of medication.schedules) {
+      promises.push(queueSingleReminder(userId, medication, schedule));
     }
   }
 
+  await Promise.all(promises);
+}
+
+// Public API
+export async function createBulkMedicationsWithSchedules(
+  userId: string,
+  medications: MedicationInput[]
+) {
+  if (!userId) throw new BadRequestError("userId is required");
+  if (!medications?.length)
+    throw new BadRequestError("medications are required");
+
+  const createdMedications = await createMedicationsInTransaction(
+    userId,
+    medications
+  );
+  await queueRemindersForMedications(userId, createdMedications);
+
   return createdMedications;
-};
+}
 
-export const createSchedule = async (data: CreateScheduleInput) => {
+export async function createSchedule(data: {
+  medicationId: string;
+  time: string;
+  type: string;
+}) {
+  if (!data.medicationId || !data.time || !data.type) {
+    throw new BadRequestError("medicationId, time, and type are required");
+  }
+
   return prisma.schedule.create({
-    data: {
-      medicationId: data.medicationId,
-      time: data.time,
-      type: data.type,
-    },
-    include: {
-      medication: true,
-    },
+    data: { medicationId: data.medicationId, time: data.time, type: data.type },
+    include: { medication: true },
   });
-};
+}
 
-export const getSchedulesByMedication = async (medicationId: string) => {
+export async function getSchedulesByMedication(medicationId: string) {
+  if (!medicationId) throw new BadRequestError("medicationId is required");
+
   return prisma.schedule.findMany({
     where: { medicationId, isActive: true },
     orderBy: { createdAt: "asc" },
   });
-};
+}
 
-export const updateSchedule = async (id: string, data: UpdateScheduleInput) => {
-  return prisma.schedule.update({
-    where: { id },
-    data,
-  });
-};
+export async function updateSchedule(
+  id: string,
+  data: { time?: string; type?: string; isActive?: boolean }
+) {
+  if (!id) throw new BadRequestError("id is required");
 
-export const deleteSchedule = async (id: string) => {
-  return prisma.schedule.delete({
-    where: { id },
-  });
-};
+  return prisma.schedule.update({ where: { id }, data });
+}
+
+export async function deleteSchedule(id: string) {
+  if (!id) throw new BadRequestError("id is required");
+
+  return prisma.schedule.delete({ where: { id } });
+}

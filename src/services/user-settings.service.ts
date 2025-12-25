@@ -1,51 +1,40 @@
 import prisma from "../utils/prisma";
+import { UpdateUserSettingsInput } from "../types";
+import { BadRequestError, NotFoundError } from "../utils/errors";
 
-interface UpdateUserSettingsInput {
-  pushNotifications?: boolean;
-  automatedCalls?: boolean;
-  darkMode?: boolean;
-  morningTime?: string;
-  noonTime?: string;
-  afternoonTime?: string;
-  nightTime?: string;
-  beforeSleepTime?: string;
+export async function getUserSettings(userId: string) {
+  if (!userId) throw new BadRequestError("userId is required");
+
+  return prisma.userSettings.findUnique({ where: { userId } });
 }
 
-export const getUserSettings = async (userId: string) => {
-  return prisma.userSettings.findUnique({
-    where: { userId },
-  });
-};
+export async function createUserSettings(userId: string) {
+  if (!userId) throw new BadRequestError("userId is required");
 
-export const createUserSettings = async (userId: string) => {
-  return prisma.userSettings.create({
-    data: { userId },
-  });
-};
+  return prisma.userSettings.create({ data: { userId } });
+}
 
-export const updateUserSettings = async (
-  userId: string,
-  data: UpdateUserSettingsInput
-) => {
-  return prisma.userSettings.update({
-    where: { userId },
-    data,
-  });
-};
+export async function updateUserSettings(userId: string, data: UpdateUserSettingsInput) {
+  if (!userId) throw new BadRequestError("userId is required");
 
-export const upsertUserSettings = async (
-  userId: string,
-  data: UpdateUserSettingsInput
-) => {
+  const existing = await prisma.userSettings.findUnique({ where: { userId } });
+  if (!existing) throw new NotFoundError("User settings");
+
+  return prisma.userSettings.update({ where: { userId }, data });
+}
+
+export async function upsertUserSettings(userId: string, data: UpdateUserSettingsInput) {
+  if (!userId) throw new BadRequestError("userId is required");
+
   return prisma.userSettings.upsert({
     where: { userId },
     create: { userId, ...data },
     update: data,
   });
-};
+}
 
-export const deleteUserSettings = async (userId: string) => {
-  return prisma.userSettings.delete({
-    where: { userId },
-  });
-};
+export async function deleteUserSettings(userId: string) {
+  if (!userId) throw new BadRequestError("userId is required");
+
+  return prisma.userSettings.delete({ where: { userId } });
+}

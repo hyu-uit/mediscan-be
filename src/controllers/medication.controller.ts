@@ -1,162 +1,111 @@
 import { Response } from "express";
-import { AuthRequest } from "../middleware/auth.middleware";
+import { AuthRequest } from "../types";
 import * as medicationService from "../services/medication.service";
 import { sendSuccess, sendError } from "../utils/response";
 import {
-  FrequencyType,
-  DosageUnit,
-  IntervalUnit,
-  TimeSlot,
-} from "@prisma/client";
+  HTTP_STATUS,
+  FREQUENCY_TYPE_MAP,
+  DOSAGE_UNIT_MAP,
+  INTERVAL_UNIT_MAP,
+  TIME_SLOT_MAP,
+} from "../constants";
+import { AppError } from "../utils/errors";
+import { TimeSlot } from "@prisma/client";
 
-// Map frontend values to Prisma enums
-const frequencyTypeMap: Record<string, FrequencyType> = {
-  daily: "DAILY",
-  interval: "INTERVAL",
-  "specific-days": "SPECIFIC_DAYS",
-};
-
-const dosageUnitMap: Record<string, DosageUnit> = {
-  mg: "MG",
-  ml: "ML",
-  IU: "IU",
-  tablet: "TABLET",
-  capsule: "CAPSULE",
-  drops: "DROPS",
-  tsp: "TSP",
-  tbsp: "TBSP",
-};
-
-const intervalUnitMap: Record<string, IntervalUnit> = {
-  days: "DAYS",
-  weeks: "WEEKS",
-  months: "MONTHS",
-};
-
-const timeSlotMap: Record<string, TimeSlot> = {
-  morning: "MORNING",
-  noon: "NOON",
-  afternoon: "AFTERNOON",
-  night: "NIGHT",
-  before_sleep: "BEFORE_SLEEP",
-};
-
-// Transform intakeTimes to use TimeSlot values
-const mapIntakeTimes = (
-  intakeTimes?: { id: string; time: string; type: string }[]
-) => {
+function transformIntakeTimes(
+  intakeTimes?: Array<{ id: string; time: string; type: string }>
+): Array<{ id: string; time: string; type: TimeSlot }> | undefined {
   if (!intakeTimes) return undefined;
   return intakeTimes.map((intake) => ({
     id: intake.id,
     time: intake.time,
-    type: timeSlotMap[intake.type] || intake.type.toUpperCase(),
+    type: (TIME_SLOT_MAP[intake.type] || intake.type.toUpperCase()) as TimeSlot,
   }));
-};
+}
 
-export const createMedication = async (req: AuthRequest, res: Response) => {
+export async function createMedication(req: AuthRequest, res: Response) {
   try {
     const userId = req.user!.userId;
-    const {
-      name,
-      dosage,
-      unit,
-      instructions,
-      notes,
-      frequencyType,
-      intervalValue,
-      intervalUnit,
-      selectedDays,
-      intakeTimes,
-    } = req.body;
-
-    if (!name) {
-      return sendError(res, "name is required", 400, req.path);
-    }
+    const { name, dosage, unit, instructions, notes, frequencyType, intervalValue, intervalUnit, selectedDays, intakeTimes } = req.body;
 
     const medication = await medicationService.createMedication({
       userId,
       name,
       dosage,
-      unit: unit ? dosageUnitMap[unit] : undefined,
+      unit: unit ? DOSAGE_UNIT_MAP[unit] : undefined,
       instructions,
       notes,
-      frequencyType: frequencyType
-        ? frequencyTypeMap[frequencyType]
-        : undefined,
+      frequencyType: frequencyType ? FREQUENCY_TYPE_MAP[frequencyType] : undefined,
       intervalValue: intervalValue ? parseInt(intervalValue, 10) : undefined,
-      intervalUnit: intervalUnit ? intervalUnitMap[intervalUnit] : undefined,
+      intervalUnit: intervalUnit ? INTERVAL_UNIT_MAP[intervalUnit] : undefined,
       selectedDays,
-      intakeTimes: mapIntakeTimes(intakeTimes),
+      intakeTimes: transformIntakeTimes(intakeTimes),
     });
 
-    return sendSuccess(res, medication, 201);
+    return sendSuccess(res, medication, HTTP_STATUS.CREATED);
   } catch (error) {
+    if (error instanceof AppError) {
+      return sendError(res, error.message, error.statusCode, req.path);
+    }
     console.error("Error creating medication:", error);
-    return sendError(res, "Failed to create medication", 500, req.path);
+    return sendError(res, "Failed to create medication", HTTP_STATUS.INTERNAL_ERROR, req.path);
   }
-};
+}
 
-export const getMedications = async (req: AuthRequest, res: Response) => {
+export async function getMedications(req: AuthRequest, res: Response) {
   try {
     const userId = req.user!.userId;
     const medications = await medicationService.getMedications(userId);
-    return sendSuccess(res, medications);
+    return sendSuccess(res, medications, HTTP_STATUS.OK);
   } catch (error) {
+    if (error instanceof AppError) {
+      return sendError(res, error.message, error.statusCode, req.path);
+    }
     console.error("Error fetching medications:", error);
-    return sendError(res, "Failed to fetch medications", 500, req.path);
+    return sendError(res, "Failed to fetch medications", HTTP_STATUS.INTERNAL_ERROR, req.path);
   }
-};
+}
 
-export const updateMedication = async (req: AuthRequest, res: Response) => {
+export async function updateMedication(req: AuthRequest, res: Response) {
   try {
     const { id } = req.params;
-    const {
-      name,
-      dosage,
-      unit,
-      instructions,
-      notes,
-      frequencyType,
-      intervalValue,
-      intervalUnit,
-      selectedDays,
-      intakeTimes,
-      imageUrl,
-      isActive,
-    } = req.body;
+    const { name, dosage, unit, instructions, notes, frequencyType, intervalValue, intervalUnit, selectedDays, intakeTimes, imageUrl, isActive } = req.body;
 
     const medication = await medicationService.updateMedication(id, {
       name,
       dosage,
-      unit: unit ? dosageUnitMap[unit] : undefined,
+      unit: unit ? DOSAGE_UNIT_MAP[unit] : undefined,
       instructions,
       notes,
-      frequencyType: frequencyType
-        ? frequencyTypeMap[frequencyType]
-        : undefined,
+      frequencyType: frequencyType ? FREQUENCY_TYPE_MAP[frequencyType] : undefined,
       intervalValue: intervalValue ? parseInt(intervalValue, 10) : undefined,
-      intervalUnit: intervalUnit ? intervalUnitMap[intervalUnit] : undefined,
+      intervalUnit: intervalUnit ? INTERVAL_UNIT_MAP[intervalUnit] : undefined,
       selectedDays,
-      intakeTimes: mapIntakeTimes(intakeTimes),
+      intakeTimes: transformIntakeTimes(intakeTimes),
       imageUrl,
       isActive,
     });
 
-    return sendSuccess(res, medication);
+    return sendSuccess(res, medication, HTTP_STATUS.OK);
   } catch (error) {
+    if (error instanceof AppError) {
+      return sendError(res, error.message, error.statusCode, req.path);
+    }
     console.error("Error updating medication:", error);
-    return sendError(res, "Failed to update medication", 500, req.path);
+    return sendError(res, "Failed to update medication", HTTP_STATUS.INTERNAL_ERROR, req.path);
   }
-};
+}
 
-export const deleteMedication = async (req: AuthRequest, res: Response) => {
+export async function deleteMedication(req: AuthRequest, res: Response) {
   try {
     const { id } = req.params;
-
     await medicationService.deleteMedication(id);
-    return sendSuccess(res, null, 204);
+    return sendSuccess(res, null, HTTP_STATUS.NO_CONTENT);
   } catch (error) {
+    if (error instanceof AppError) {
+      return sendError(res, error.message, error.statusCode, req.path);
+    }
     console.error("Error deleting medication:", error);
-    return sendError(res, "Failed to delete medication", 500, req.path);
+    return sendError(res, "Failed to delete medication", HTTP_STATUS.INTERNAL_ERROR, req.path);
   }
-};
+}
