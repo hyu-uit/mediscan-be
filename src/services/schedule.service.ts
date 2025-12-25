@@ -13,6 +13,7 @@ import {
   shouldScheduleOnDate,
   getTodayUTC,
   getDateUTC,
+  parseTime,
   MedicationFrequency,
 } from "../utils/time";
 import { BadRequestError } from "../utils/errors";
@@ -288,11 +289,15 @@ export async function getTodaySchedule(userId: string) {
     })
   );
 
-  // Sort by time
+  // Sort by time (convert to 24-hour format for correct ordering)
   todaySchedules.sort((a, b) => {
-    const timeA = a.time.replace(/[^0-9:]/g, "");
-    const timeB = b.time.replace(/[^0-9:]/g, "");
-    return timeA.localeCompare(timeB);
+    const timeA = parseTime(a.time);
+    const timeB = parseTime(b.time);
+    // Compare hours first, then minutes
+    if (timeA.hours !== timeB.hours) {
+      return timeA.hours - timeB.hours;
+    }
+    return timeA.minutes - timeB.minutes;
   });
 
   // Count remaining (not taken/skipped and not passed)
@@ -374,11 +379,15 @@ export async function getScheduleByDate(userId: string, date: string) {
     })
   );
 
-  // Sort by time
+  // Sort by time (convert to 24-hour format for correct ordering)
   schedules.sort((a, b) => {
-    const timeA = a.time.replace(/[^0-9:]/g, "");
-    const timeB = b.time.replace(/[^0-9:]/g, "");
-    return timeA.localeCompare(timeB);
+    const timeA = parseTime(a.time);
+    const timeB = parseTime(b.time);
+    // Compare hours first, then minutes
+    if (timeA.hours !== timeB.hours) {
+      return timeA.hours - timeB.hours;
+    }
+    return timeA.minutes - timeB.minutes;
   });
 
   return { schedules };
