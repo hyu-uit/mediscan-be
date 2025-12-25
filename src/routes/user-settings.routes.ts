@@ -12,4 +12,15 @@ router.delete("/", userSettingsController.deleteUserSettings);
 // FCM token registration
 router.post("/fcm-token", userSettingsController.registerFcmToken);
 
+// Toggle settings
+router.post(
+  "/toggle/push-notifications",
+  userSettingsController.togglePushNotifications
+);
+router.post(
+  "/toggle/automated-calls",
+  userSettingsController.toggleAutomatedCalls
+);
+router.post("/toggle/dark-mode", userSettingsController.toggleDarkMode);
+
 export default router;

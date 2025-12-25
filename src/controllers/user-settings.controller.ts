@@ -186,3 +186,60 @@ export async function registerFcmToken(req: AuthRequest, res: Response) {
     );
   }
 }
+
+export async function togglePushNotifications(req: AuthRequest, res: Response) {
+  try {
+    const userId = req.user!.userId;
+    const settings = await userSettingsService.togglePushNotifications(userId);
+    return sendSuccess(res, settings, HTTP_STATUS.OK);
+  } catch (error) {
+    if (error instanceof AppError) {
+      return sendError(res, error.message, error.statusCode, req.path);
+    }
+    console.error("Error toggling push notifications:", error);
+    return sendError(
+      res,
+      "Failed to toggle push notifications",
+      HTTP_STATUS.INTERNAL_ERROR,
+      req.path
+    );
+  }
+}
+
+export async function toggleAutomatedCalls(req: AuthRequest, res: Response) {
+  try {
+    const userId = req.user!.userId;
+    const settings = await userSettingsService.toggleAutomatedCalls(userId);
+    return sendSuccess(res, settings, HTTP_STATUS.OK);
+  } catch (error) {
+    if (error instanceof AppError) {
+      return sendError(res, error.message, error.statusCode, req.path);
+    }
+    console.error("Error toggling automated calls:", error);
+    return sendError(
+      res,
+      "Failed to toggle automated calls",
+      HTTP_STATUS.INTERNAL_ERROR,
+      req.path
+    );
+  }
+}
+
+export async function toggleDarkMode(req: AuthRequest, res: Response) {
+  try {
+    const userId = req.user!.userId;
+    const settings = await userSettingsService.toggleDarkMode(userId);
+    return sendSuccess(res, settings, HTTP_STATUS.OK);
+  } catch (error) {
+    if (error instanceof AppError) {
+      return sendError(res, error.message, error.statusCode, req.path);
+    }
+    console.error("Error toggling dark mode:", error);
+    return sendError(
+      res,
+      "Failed to toggle dark mode",
+      HTTP_STATUS.INTERNAL_ERROR,
+      req.path
+    );
+  }
+}

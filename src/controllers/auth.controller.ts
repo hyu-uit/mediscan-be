@@ -3,6 +3,7 @@ import * as authService from "../services/auth.service";
 import { sendSuccess, sendError } from "../utils/response";
 import { HTTP_STATUS } from "../constants";
 import { AppError } from "../utils/errors";
+import { AuthRequest } from "../types";
 
 export async function register(req: Request, res: Response) {
   try {
@@ -14,7 +15,12 @@ export async function register(req: Request, res: Response) {
       return sendError(res, error.message, error.statusCode, req.path);
     }
     console.error("Error registering user:", error);
-    return sendError(res, "Failed to register user", HTTP_STATUS.INTERNAL_ERROR, req.path);
+    return sendError(
+      res,
+      "Failed to register user",
+      HTTP_STATUS.INTERNAL_ERROR,
+      req.path
+    );
   }
 }
 
@@ -28,6 +34,30 @@ export async function login(req: Request, res: Response) {
       return sendError(res, error.message, error.statusCode, req.path);
     }
     console.error("Error logging in:", error);
-    return sendError(res, "Failed to login", HTTP_STATUS.INTERNAL_ERROR, req.path);
+    return sendError(
+      res,
+      "Failed to login",
+      HTTP_STATUS.INTERNAL_ERROR,
+      req.path
+    );
+  }
+}
+
+export async function getMe(req: AuthRequest, res: Response) {
+  try {
+    const userId = req.user!.userId;
+    const user = await authService.getMe(userId);
+    return sendSuccess(res, user, HTTP_STATUS.OK);
+  } catch (error) {
+    if (error instanceof AppError) {
+      return sendError(res, error.message, error.statusCode, req.path);
+    }
+    console.error("Error fetching user:", error);
+    return sendError(
+      res,
+      "Failed to fetch user",
+      HTTP_STATUS.INTERNAL_ERROR,
+      req.path
+    );
   }
 }

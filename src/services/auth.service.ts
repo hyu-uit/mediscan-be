@@ -3,7 +3,12 @@ import jwt from "jsonwebtoken";
 import prisma from "../utils/prisma";
 import { RegisterInput, LoginInput, AuthResponse } from "../types";
 import { JWT_CONFIG, ERROR_MESSAGES } from "../constants";
-import { ConflictError, NotFoundError, UnauthorizedError, BadRequestError } from "../utils/errors";
+import {
+  ConflictError,
+  NotFoundError,
+  UnauthorizedError,
+  BadRequestError,
+} from "../utils/errors";
 
 const SALT_ROUNDS = 10;
 
@@ -71,4 +76,35 @@ function generateToken(userId: string, email: string): string {
   return jwt.sign({ userId, email }, JWT_CONFIG.SECRET, {
     expiresIn: JWT_CONFIG.EXPIRES_IN,
   });
+}
+
+export async function getMe(userId: string) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      email: true,
+      name: true,
+      createdAt: true,
+      updatedAt: true,
+      settings: {
+        select: {
+          pushNotifications: true,
+          automatedCalls: true,
+          darkMode: true,
+          morningTime: true,
+          noonTime: true,
+          afternoonTime: true,
+          nightTime: true,
+          beforeSleepTime: true,
+        },
+      },
+    },
+  });
+
+  if (!user) {
+    throw new NotFoundError("User");
+  }
+
+  return user;
 }
