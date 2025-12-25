@@ -66,3 +66,36 @@ export async function getLogs(req: AuthRequest, res: Response) {
     );
   }
 }
+
+export async function getStats(req: AuthRequest, res: Response) {
+  try {
+    const userId = req.user!.userId;
+    const { period } = req.query;
+
+    if (!period || !["daily", "weekly", "monthly"].includes(period as string)) {
+      return sendError(
+        res,
+        "period query parameter is required (daily, weekly, or monthly)",
+        HTTP_STATUS.BAD_REQUEST,
+        req.path
+      );
+    }
+
+    const stats = await medicationLogService.getIntakeStats(
+      userId,
+      period as "daily" | "weekly" | "monthly"
+    );
+    return sendSuccess(res, stats, HTTP_STATUS.OK);
+  } catch (error) {
+    if (error instanceof AppError) {
+      return sendError(res, error.message, error.statusCode, req.path);
+    }
+    console.error("Error fetching intake stats:", error);
+    return sendError(
+      res,
+      "Failed to fetch intake stats",
+      HTTP_STATUS.INTERNAL_ERROR,
+      req.path
+    );
+  }
+}

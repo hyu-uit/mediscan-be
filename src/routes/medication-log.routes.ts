@@ -4,6 +4,7 @@ import * as medicationLogController from "../controllers/medication-log.controll
 const router = Router();
 
 router.get("/", medicationLogController.getLogs);
+router.get("/stats", medicationLogController.getStats);
 router.post("/:id/taken", medicationLogController.markTaken);
 router.post("/:id/skip", medicationLogController.skip);
 
