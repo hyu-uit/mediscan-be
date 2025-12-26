@@ -1,0 +1,106 @@
+import { UpdateUserSettingsInput } from "../types";
+export declare function getUserSettings(userId: string): Promise<{
+    id: string;
+    pushNotifications: boolean;
+    automatedCalls: boolean;
+    darkMode: boolean;
+    fcmToken: string | null;
+    morningTime: string;
+    noonTime: string;
+    afternoonTime: string;
+    nightTime: string;
+    beforeSleepTime: string;
+    userId: string;
+} | null>;
+export declare function createUserSettings(userId: string): Promise<{
+    id: string;
+    pushNotifications: boolean;
+    automatedCalls: boolean;
+    darkMode: boolean;
+    fcmToken: string | null;
+    morningTime: string;
+    noonTime: string;
+    afternoonTime: string;
+    nightTime: string;
+    beforeSleepTime: string;
+    userId: string;
+}>;
+export declare function updateUserSettings(userId: string, data: UpdateUserSettingsInput): Promise<{
+    id: string;
+    pushNotifications: boolean;
+    automatedCalls: boolean;
+    darkMode: boolean;
+    fcmToken: string | null;
+    morningTime: string;
+    noonTime: string;
+    afternoonTime: string;
+    nightTime: string;
+    beforeSleepTime: string;
+    userId: string;
+}>;
+export declare function upsertUserSettings(userId: string, data: UpdateUserSettingsInput): Promise<{
+    id: string;
+    pushNotifications: boolean;
+    automatedCalls: boolean;
+    darkMode: boolean;
+    fcmToken: string | null;
+    morningTime: string;
+    noonTime: string;
+    afternoonTime: string;
+    nightTime: string;
+    beforeSleepTime: string;
+    userId: string;
+}>;
+export declare function deleteUserSettings(userId: string): Promise<{
+    id: string;
+    pushNotifications: boolean;
+    automatedCalls: boolean;
+    darkMode: boolean;
+    fcmToken: string | null;
+    morningTime: string;
+    noonTime: string;
+    afternoonTime: string;
+    nightTime: string;
+    beforeSleepTime: string;
+    userId: string;
+}>;
+export declare function togglePushNotifications(userId: string): Promise<{
+    id: string;
+    pushNotifications: boolean;
+    automatedCalls: boolean;
+    darkMode: boolean;
+    fcmToken: string | null;
+    morningTime: string;
+    noonTime: string;
+    afternoonTime: string;
+    nightTime: string;
+    beforeSleepTime: string;
+    userId: string;
+}>;
+export declare function toggleAutomatedCalls(userId: string): Promise<{
+    id: string;
+    pushNotifications: boolean;
+    automatedCalls: boolean;
+    darkMode: boolean;
+    fcmToken: string | null;
+    morningTime: string;
+    noonTime: string;
+    afternoonTime: string;
+    nightTime: string;
+    beforeSleepTime: string;
+    userId: string;
+}>;
+export declare function toggleDarkMode(userId: string): Promise<{
+    id: string;
+    pushNotifications: boolean;
+    automatedCalls: boolean;
+    darkMode: boolean;
+    fcmToken: string | null;
+    morningTime: string;
+    noonTime: string;
+    afternoonTime: string;
+    nightTime: string;
+    beforeSleepTime: string;
+    userId: string;
+}>;
+//# sourceMappingURL=user-settings.service.d.ts.map
