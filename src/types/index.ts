@@ -145,3 +145,32 @@ export interface AuthResponse {
   };
   token: string;
 }
+
+// Medication List Response Types
+export type DosageUnitType =
+  | "mg"
+  | "ml"
+  | "IU"
+  | "tablet"
+  | "capsule"
+  | "drops"
+  | "tsp"
+  | "tbsp";
+
+export type MedicineStatusType = "active" | "inactive";
+
+export interface MedicineResponse {
+  id: string;
+  name: string;
+  dosage: string;
+  unit: DosageUnitType;
+  frequency: string;
+  instructions: string;
+  status: MedicineStatusType;
+  iconColor?: string;
+}
+
+export interface MedicinesListResponse {
+  medications: MedicineResponse[];
+  totalCount: number;
+}

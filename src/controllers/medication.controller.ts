@@ -75,8 +75,8 @@ export async function createMedication(req: AuthRequest, res: Response) {
 export async function getMedications(req: AuthRequest, res: Response) {
   try {
     const userId = req.user!.userId;
-    const medications = await medicationService.getMedications(userId);
-    return sendSuccess(res, medications, HTTP_STATUS.OK);
+    const result = await medicationService.getMedicationsList(userId);
+    return sendSuccess(res, result, HTTP_STATUS.OK);
   } catch (error) {
     if (error instanceof AppError) {
       return sendError(res, error.message, error.statusCode, req.path);

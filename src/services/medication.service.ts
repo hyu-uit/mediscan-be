@@ -1,6 +1,27 @@
 import prisma from "../utils/prisma";
-import { CreateMedicationInput, UpdateMedicationInput } from "../types";
-import { DEFAULTS } from "../constants";
+import {
+  CreateMedicationInput,
+  UpdateMedicationInput,
+  MedicineResponse,
+  MedicinesListResponse,
+  DosageUnitType,
+} from "../types";
+import {
+  DEFAULTS,
+  DOSAGE_UNIT_MAP,
+  FREQUENCY_TYPE_MAP,
+  INTERVAL_UNIT_MAP,
+} from "../constants";
+
+// Helper to reverse lookup from a map
+function reverseLookup<T>(
+  map: Record<string, T>,
+  value: T,
+  defaultKey: string
+): string {
+  const entry = Object.entries(map).find(([, v]) => v === value);
+  return entry ? entry[0] : defaultKey;
+}
 import { BadRequestError, NotFoundError } from "../utils/errors";
 import { medicationReminderQueue } from "../queues/medication.queue";
 import {
@@ -148,6 +169,83 @@ export async function getMedications(userId: string) {
     include: { schedules: true },
     orderBy: { createdAt: "desc" },
   });
+}
+
+// Helper function to format frequency string
+function formatFrequencyString(medication: {
+  frequencyType: string;
+  intervalValue: number;
+  intervalUnit: string;
+  selectedDays: string[];
+}): string {
+  const frequencyType = reverseLookup(
+    FREQUENCY_TYPE_MAP,
+    medication.frequencyType,
+    medication.frequencyType
+  );
+
+  if (frequencyType === "daily") {
+    return "Daily";
+  } else if (frequencyType === "interval") {
+    const unit = reverseLookup(
+      INTERVAL_UNIT_MAP,
+      medication.intervalUnit,
+      medication.intervalUnit
+    );
+    return `Every ${medication.intervalValue} ${unit}`;
+  } else if (frequencyType === "specific-days") {
+    const days = medication.selectedDays;
+    if (days.length === 0) return "No days selected";
+    if (days.length === 7) return "Daily";
+    return days
+      .map((d) => d.charAt(0).toUpperCase() + d.slice(1, 3))
+      .join(", ");
+  }
+  return frequencyType;
+}
+
+// Helper function to get icon color based on first schedule type
+function getIconColor(schedules: Array<{ type: string }>): string | undefined {
+  if (schedules.length === 0) return undefined;
+
+  const colorMap: Record<string, string> = {
+    morning: "#FFB020",
+    noon: "#FF6B6B",
+    afternoon: "#4ECDC4",
+    night: "#7C3AED",
+    before_sleep: "#6366F1",
+  };
+
+  const firstType = schedules[0].type.toLowerCase();
+  return colorMap[firstType];
+}
+
+export async function getMedicationsList(
+  userId: string
+): Promise<MedicinesListResponse> {
+  if (!userId) throw new BadRequestError("userId is required");
+
+  const medications = await prisma.medication.findMany({
+    where: { userId },
+    include: { schedules: true },
+    orderBy: { createdAt: "desc" },
+  });
+
+  const formattedMedications: MedicineResponse[] = medications.map((med) => ({
+    id: med.id,
+    name: med.name,
+    dosage: med.dosage || "",
+    unit: reverseLookup(DOSAGE_UNIT_MAP, med.unit, "mg") as DosageUnitType,
+    frequency: formatFrequencyString(med),
+    instructions: med.instructions || "",
+    status: med.isActive ? "active" : "inactive",
+    iconColor: getIconColor(med.schedules),
+  }));
+
+  return {
+    medications: formattedMedications,
+    totalCount: medications.length,
+  };
 }
 
 export async function getMedicationById(id: string) {
