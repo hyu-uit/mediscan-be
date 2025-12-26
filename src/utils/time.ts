@@ -32,13 +32,13 @@ export function getDateUTC(date: Date | string): Date {
 
 export function parseTime(timeStr: string): ParsedTime {
   const parts = timeStr.split(" ");
-  const [hours, minutes] = parts[0].split(":").map(Number);
+  const [hours, minutes] = parts[0].split(":")?.map(Number);
 
   if (parts.length === 1) {
     return { hours, minutes };
   }
 
-  const modifier = parts[1].toUpperCase();
+  const modifier = parts[1]?.toUpperCase();
 
   if (modifier === "PM" && hours !== 12) {
     return { hours: hours + 12, minutes };
@@ -123,7 +123,7 @@ export function shouldScheduleOnDate(
       const dayNames = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
       const targetDayName = dayNames[target.getDay()];
       return medication.selectedDays
-        .map((d) => d.toUpperCase())
+        .map((d) => d?.toUpperCase())
         .includes(targetDayName);
     }
 

@@ -214,20 +214,30 @@ export async function getLogsForPeriod(userId: string, period: Period) {
   });
 
   // Transform to match schedule response format
-  const formattedLogs = logs.map((log) => ({
-    id: log.schedule?.id || null,
-    logId: log.id,
-    medicationId: log.medicationId,
-    medicationName: log.medication.name,
-    dosage: log.medication.dosage,
-    unit: log.medication.unit,
-    instructions: log.medication.instructions,
-    scheduledDate: log.scheduledDate.toISOString().split("T")[0],
-    time: log.scheduledTime,
-    timeSlot: log.timeSlot,
-    status: log.status,
-    takenAt: log.takenAt,
-  }));
+  const formattedLogs = logs
+    .map((log) => ({
+      id: log.schedule?.id || null,
+      logId: log.id,
+      medicationId: log.medicationId,
+      medicationName: log.medication.name,
+      dosage: log.medication.dosage,
+      unit: log.medication.unit,
+      instructions: log.medication.instructions,
+      scheduledDate: log.scheduledDate.toISOString().split("T")[0],
+      time: log.scheduledTime,
+      timeSlot: log.timeSlot,
+      status: log.status,
+      takenAt: log.takenAt,
+    }))
+    .sort((a, b) => {
+      const timeA = parseTime(a.time);
+      const timeB = parseTime(b.time);
+      // Compare hours first, then minutes
+      if (timeA.hours !== timeB.hours) {
+        return timeA.hours - timeB.hours;
+      }
+      return timeA.minutes - timeB.minutes;
+    });
 
   return {
     period,

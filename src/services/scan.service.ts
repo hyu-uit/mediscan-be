@@ -4,7 +4,6 @@ import FormData from "form-data";
 const AI_SERVER_URL = process.env.AI_SERVER_URL || "http://localhost:2332";
 
 export interface ScanResult {
-  success: boolean;
   medications: Array<{
     id: string;
     name: string;
@@ -56,17 +55,30 @@ export async function scanDocument(
       } medications found`
     );
 
-    return response.data;
+    return {
+      medications: response.data.medications,
+      rawText: response.data.rawText,
+      confidence: response.data.confidence,
+    };
   } catch (error) {
     if (axios.isAxiosError(error)) {
+      console.error(`❌ AI Server error:`);
+      console.error(`  Status: ${error.response?.status || "N/A"}`);
+      console.error(`  Status Text: ${error.response?.statusText || "N/A"}`);
+      console.error(`  URL: ${error.config?.url || "N/A"}`);
       console.error(
-        `❌ AI Server error:`,
-        error.response?.data || error.message
+        `  Response Data:`,
+        JSON.stringify(error.response?.data, null, 2)
       );
+      console.error(`  Error Message: ${error.message}`);
+      if (error.code) {
+        console.error(`  Error Code: ${error.code}`);
+      }
       throw new Error(
         error.response?.data?.message || "Failed to scan document"
       );
     }
+    console.error(`❌ Unexpected error during scan:`, error);
     throw error;
   }
 }
